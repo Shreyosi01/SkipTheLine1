@@ -45,9 +45,15 @@ def place_order(data: schemas.OrderCreate, db: Session = Depends(get_db),
     db.refresh(order)
 
     for item in data.items:
-        db.add(models.OrderItem(order_id=order.id,
-                                menu_item_id=item.menu_item_id,
-                                quantity=item.quantity))
+        menu_item = db.query(models.MenuItem).filter(
+            models.MenuItem.id == item.menu_item_id).first()
+        db.add(models.OrderItem(
+            order_id=order.id,
+            menu_item_id=item.menu_item_id,
+            quantity=item.quantity,
+            price=menu_item.price,          # store price snapshot
+            menu_item_name=menu_item.name   # store name snapshot
+        ))
     db.commit()
     db.refresh(order)
     return order
