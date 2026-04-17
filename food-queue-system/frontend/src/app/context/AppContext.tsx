@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { api } from '../api/client';
+import { api } from '../../api/client';
 
 export type UserMode = 'customer' | 'vendor';
 export type OrderStatus = 'placed' | 'preparing' | 'ready' | 'completed';
