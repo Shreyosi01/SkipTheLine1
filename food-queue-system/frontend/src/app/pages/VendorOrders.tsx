@@ -4,7 +4,7 @@ import { Clock, ChefHat, Package, CheckCircle, ArrowLeft } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
-import { api } from '../api/client';
+import { api } from '../../api/client';
 
 export const VendorOrders: React.FC = () => {
   const { orders, updateOrderStatus, user } = useApp();

@@ -5,7 +5,7 @@ import { useApp } from '../context/AppContext';
 import { useNavigate } from 'react-router';
 import { mockStalls, generateToken } from '../data/mockData';
 import { toast } from 'sonner';
-import { api } from '../api/client';
+import { api } from '../../api/client';
 
 export const Cart: React.FC = () => {
   const { cart, removeFromCart, addToCart, clearCart, addOrder } = useApp();
