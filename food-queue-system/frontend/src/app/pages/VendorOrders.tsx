@@ -4,19 +4,28 @@ import { Clock, ChefHat, Package, CheckCircle, ArrowLeft } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
+import { api } from '../api/client';
 
 export const VendorOrders: React.FC = () => {
   const { orders, updateOrderStatus, user } = useApp();
   const navigate = useNavigate();
   const [filter, setFilter] = useState<'all' | 'placed' | 'preparing' | 'ready'>('all');
 
-  // Filter orders for this vendor's stall only
   const vendorOrders = orders.filter((o) => o.stallId === user?.stallId);
   const filteredOrders = filter === 'all' ? vendorOrders : vendorOrders.filter((o) => o.status === filter);
 
-  const handleStatusChange = (orderId: string, newStatus: 'placed' | 'preparing' | 'ready' | 'completed') => {
-    updateOrderStatus(orderId, newStatus);
-    toast.success(`Order status updated to ${newStatus}`);
+  const handleStatusChange = async (orderId: string, newStatus: 'placed' | 'preparing' | 'ready' | 'completed') => {
+    try {
+      const res = await api.updateOrderStatus(parseInt(orderId), newStatus);
+      if (res.detail) {
+        toast.error(res.detail);
+        return;
+      }
+      updateOrderStatus(orderId, newStatus);
+      toast.success(`Order status updated to ${newStatus}`);
+    } catch (err) {
+      toast.error('Failed to update order status');
+    }
   };
 
   const getNextStatus = (currentStatus: string) => {
@@ -51,7 +60,6 @@ export const VendorOrders: React.FC = () => {
           <p className="text-gray-400">Manage and update order statuses</p>
         </motion.div>
 
-        {/* Filters */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -75,7 +83,6 @@ export const VendorOrders: React.FC = () => {
           ))}
         </motion.div>
 
-        {/* Orders List */}
         {filteredOrders.length === 0 ? (
           <motion.div
             initial={{ opacity: 0 }}
@@ -99,7 +106,6 @@ export const VendorOrders: React.FC = () => {
                   transition={{ delay: index * 0.1 }}
                   className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-purple-500/20"
                 >
-                  {/* Order Header */}
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-3">
                       <div className="w-12 h-12 rounded-full bg-gradient-to-r from-green-500 to-emerald-500 flex items-center justify-center text-white font-bold">
@@ -119,7 +125,6 @@ export const VendorOrders: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Order Items */}
                   <div className="space-y-2 mb-4 p-3 bg-gray-900/50 rounded-lg">
                     {order.items.map((item) => (
                       <div key={item.id} className="flex justify-between text-sm">
@@ -131,7 +136,6 @@ export const VendorOrders: React.FC = () => {
                     ))}
                   </div>
 
-                  {/* Status Badge */}
                   <div className="mb-4">
                     <span
                       className={`inline-flex px-3 py-1 rounded-full text-xs font-semibold ${
@@ -148,7 +152,6 @@ export const VendorOrders: React.FC = () => {
                     </span>
                   </div>
 
-                  {/* Action Buttons */}
                   {order.status !== 'completed' && nextStatus && (
                     <div className="flex gap-3">
                       <motion.button
@@ -165,7 +168,6 @@ export const VendorOrders: React.FC = () => {
                     </div>
                   )}
 
-                  {/* Timer */}
                   <motion.div
                     className="mt-4 flex items-center justify-center gap-2 text-purple-300 text-sm"
                     animate={{ opacity: [0.5, 1, 0.5] }}
