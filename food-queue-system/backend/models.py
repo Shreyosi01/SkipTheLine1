@@ -53,4 +53,6 @@ class OrderItem(Base):
     order_id     = Column(Integer, ForeignKey("orders.id"))
     menu_item_id = Column(Integer, ForeignKey("menu_items.id"))
     quantity     = Column(Integer)
+    price          = Column(Float, default=0.0)        # ← add this
+    menu_item_name = Column(String, default="")        # ← add this
     order        = relationship("Order", back_populates="items")

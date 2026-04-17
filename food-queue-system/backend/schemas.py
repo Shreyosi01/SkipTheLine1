@@ -51,6 +51,8 @@ class OrderStatusUpdate(BaseModel):
 class OrderItemResponse(BaseModel):
     id: int
     menu_item_id: int
+    menu_item_name: str = ""
+    price: float = 0.0
     quantity: int
     class Config:
         from_attributes = True
