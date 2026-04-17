@@ -5,6 +5,7 @@ import { useApp, UserMode } from '../context/AppContext';
 import { useNavigate } from 'react-router';
 import { ModeToggle } from '../components/ModeToggle';
 import { useTheme } from 'next-themes';
+import { toast } from 'sonner';
 
 export const Auth: React.FC = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -12,7 +13,7 @@ export const Auth: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [selectedMode, setSelectedMode] = useState<UserMode>('customer');
-  const { setUser, setUserMode } = useApp();
+  const { loginUser, registerUser, isLoading } = useApp();
   const { theme, setTheme } = useTheme();
   const navigate = useNavigate();
   const [mounted, setMounted] = useState(false);
@@ -21,24 +22,27 @@ export const Auth: React.FC = () => {
     setMounted(true);
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const user = {
-      id: Math.random().toString(36).substr(2, 9),
-      name: isLogin ? email.split('@')[0] : name,
-      email,
-      mode: selectedMode,
-      // Assign vendor to a stall - in a real app, this would be based on their registration/assignment
-      stallId: selectedMode === 'vendor' ? '1' : undefined,
-    };
-    setUser(user);
-    setUserMode(selectedMode);
-    navigate('/');
+    try {
+      if (isLogin) {
+        await loginUser(email, password);
+        toast.success('Welcome back!');
+      } else {
+        await registerUser(
+          name, email, password, selectedMode,
+          selectedMode === 'vendor' ? 1 : undefined
+        );
+        toast.success('Account created successfully!');
+      }
+      navigate(selectedMode === 'vendor' ? '/vendor' : '/');
+    } catch (err: any) {
+      toast.error(err.message || 'Something went wrong');
+    }
   };
 
   return (
     <div className="min-h-screen flex bg-white dark:bg-gray-900 transition-colors duration-200">
-      {/* Theme Toggle - Top Right */}
       {mounted && (
         <motion.button
           initial={{ opacity: 0, y: -20 }}
@@ -52,7 +56,6 @@ export const Auth: React.FC = () => {
         </motion.button>
       )}
 
-      {/* Left Side - Animated Illustration */}
       <motion.div
         initial={{ x: -100, opacity: 0 }}
         animate={{ x: 0, opacity: 1 }}
@@ -67,14 +70,8 @@ export const Auth: React.FC = () => {
         
         <div className="relative z-10 flex flex-col items-center justify-center w-full p-12 text-white">
           <motion.div
-            animate={{
-              y: [0, -20, 0],
-            }}
-            transition={{
-              duration: 3,
-              repeat: Infinity,
-              ease: 'easeInOut',
-            }}
+            animate={{ y: [0, -20, 0] }}
+            transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
             className="mb-8"
           >
             <div className="w-32 h-32 bg-white/10 backdrop-blur-lg rounded-full flex items-center justify-center border-4 border-white/30">
@@ -104,7 +101,6 @@ export const Auth: React.FC = () => {
         </div>
       </motion.div>
 
-      {/* Right Side - Form */}
       <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-white dark:bg-gray-900 transition-colors duration-200">
         <motion.div
           initial={{ x: 100, opacity: 0 }}
@@ -112,7 +108,6 @@ export const Auth: React.FC = () => {
           transition={{ duration: 0.6 }}
           className="w-full max-w-md"
         >
-          {/* Logo */}
           <div className="flex items-center justify-center gap-3 mb-8">
             <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-2xl ${
               selectedMode === 'customer'
@@ -130,7 +125,6 @@ export const Auth: React.FC = () => {
             </span>
           </div>
 
-          {/* Tab Toggle */}
           <div className="flex mb-8 bg-gray-100 dark:bg-gray-800/50 rounded-lg p-1">
             <button
               onClick={() => setIsLogin(true)}
@@ -158,7 +152,6 @@ export const Auth: React.FC = () => {
             </button>
           </div>
 
-          {/* Mode Toggle */}
           <div className="mb-8 text-center">
             <p className="text-gray-600 dark:text-gray-400 text-sm mb-3">Select your mode</p>
             <div className="flex justify-center">
@@ -166,7 +159,6 @@ export const Auth: React.FC = () => {
             </div>
           </div>
 
-          {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-6">
             <AnimatePresence mode="wait">
               {!isLogin && (
@@ -227,20 +219,16 @@ export const Auth: React.FC = () => {
 
             <motion.button
               type="submit"
-              whileHover={{
-                scale: 1.02,
-                boxShadow: selectedMode === 'customer'
-                  ? '0 0 30px rgba(59, 130, 246, 0.5)'
-                  : '0 0 30px rgba(34, 197, 94, 0.5)'
-              }}
+              disabled={isLoading}
+              whileHover={{ scale: 1.02, boxShadow: selectedMode === 'customer' ? '0 0 30px rgba(59, 130, 246, 0.5)' : '0 0 30px rgba(34, 197, 94, 0.5)' }}
               whileTap={{ scale: 0.98 }}
-              className={`w-full py-4 text-white font-bold rounded-lg shadow-lg transition-all ${
+              className={`w-full py-4 text-white font-bold rounded-lg shadow-lg transition-all disabled:opacity-60 disabled:cursor-not-allowed ${
                 selectedMode === 'customer'
                   ? 'bg-gradient-to-r from-blue-500 to-cyan-500 hover:shadow-blue-500/50'
                   : 'bg-gradient-to-r from-green-500 to-emerald-500 hover:shadow-green-500/50'
               }`}
             >
-              {isLogin ? 'Login' : 'Get Started'}
+              {isLoading ? 'Please wait...' : isLogin ? 'Login' : 'Get Started'}
             </motion.button>
           </form>
 

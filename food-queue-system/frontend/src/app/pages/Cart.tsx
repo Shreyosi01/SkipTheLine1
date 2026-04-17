@@ -5,6 +5,7 @@ import { useApp } from '../context/AppContext';
 import { useNavigate } from 'react-router';
 import { mockStalls, generateToken } from '../data/mockData';
 import { toast } from 'sonner';
+import { api } from '../api/client';
 
 export const Cart: React.FC = () => {
   const { cart, removeFromCart, addToCart, clearCart, addOrder } = useApp();
@@ -13,28 +14,46 @@ export const Cart: React.FC = () => {
   const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const estimatedTime = 15;
 
-  const handleCheckout = () => {
+  const handleCheckout = async () => {
     if (cart.length === 0) {
       toast.error('Your cart is empty!');
       return;
     }
 
-    const order = {
-      id: Math.random().toString(36).substr(2, 9),
-      stallId: cart[0].stallId,
-      stallName: mockStalls.find((s) => s.id === cart[0].stallId)?.name || 'Unknown Stall',
-      items: cart,
-      total,
-      token: generateToken(),
-      status: 'placed' as const,
-      estimatedTime,
-      timestamp: new Date(),
-    };
+    try {
+      const orderPayload = {
+        stall_id: parseInt(cart[0].stallId),
+        items: cart.map((item) => ({
+          menu_item_id: parseInt(item.id),
+          quantity: item.quantity,
+        })),
+      };
 
-    addOrder(order);
-    clearCart();
-    toast.success('Order placed successfully!');
-    navigate(`/order/₹{order.id}`);
+      const res = await api.placeOrder(orderPayload);
+      if (res.detail) {
+        toast.error(res.detail);
+        return;
+      }
+
+      const order = {
+        id: String(res.id),
+        stallId: String(res.stall_id),
+        stallName: mockStalls.find((s) => s.id === cart[0].stallId)?.name || 'Stall',
+        items: cart,
+        total: res.total_price,
+        token: res.token,
+        status: res.status as any,
+        estimatedTime: 15,
+        timestamp: new Date(res.created_at),
+      };
+
+      addOrder(order);
+      clearCart();
+      toast.success(`Order placed! Token: ${res.token}`);
+      navigate(`/order/${res.id}`);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to place order');
+    }
   };
 
   const updateQuantity = (itemId: string, change: number) => {
@@ -83,7 +102,6 @@ export const Cart: React.FC = () => {
           </motion.div>
         ) : (
           <div className="space-y-6">
-            {/* Cart Items */}
             <AnimatePresence>
               {cart.map((item, index) => (
                 <motion.div
@@ -103,7 +121,6 @@ export const Cart: React.FC = () => {
                     </div>
 
                     <div className="flex items-center gap-6">
-                      {/* Quantity Controls */}
                       <div className="flex items-center gap-3">
                         <motion.button
                           whileHover={{ scale: 1.1 }}
@@ -126,14 +143,12 @@ export const Cart: React.FC = () => {
                         </motion.button>
                       </div>
 
-                      {/* Price */}
                       <div className="text-right min-w-[80px]">
                         <p className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
                           ₹{(item.price * item.quantity).toFixed(2)}
                         </p>
                       </div>
 
-                      {/* Remove Button */}
                       <motion.button
                         whileHover={{ scale: 1.1, rotate: 10 }}
                         whileTap={{ scale: 0.9 }}
@@ -148,7 +163,6 @@ export const Cart: React.FC = () => {
               ))}
             </AnimatePresence>
 
-            {/* Summary Card */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
