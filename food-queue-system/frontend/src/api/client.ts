@@ -1,4 +1,4 @@
-const BASE_URL = import.meta.env.VITE_API_URL;
+const BASE_URL = "https://skiptheline-g8dy.onrender.com";
 
 const getToken = () => localStorage.getItem("token");
 
