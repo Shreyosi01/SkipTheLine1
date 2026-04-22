@@ -10,6 +10,7 @@ import { VendorQueue } from './pages/VendorQueue';
 import { VendorAnalytics } from './pages/VendorAnalytics';
 import { Profile } from './pages/Profile';
 import { Layout } from './components/Layout';
+import { CreateStall } from './pages/CreateStall';
 
 export const router = createBrowserRouter([
   {
@@ -31,6 +32,7 @@ export const router = createBrowserRouter([
       { path: 'vendor/orders', Component: VendorOrders },
       { path: 'vendor/queue', Component: VendorQueue },
       { path: 'vendor/analytics', Component: VendorAnalytics },
+      { path: 'vendor/stall', Component: CreateStall },
 
       // Profile
       { path: 'profile', Component: Profile },
@@ -41,3 +43,4 @@ export const router = createBrowserRouter([
     element: <Navigate to="/" replace />,
   },
 ]);
+

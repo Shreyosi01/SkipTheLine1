@@ -4,6 +4,7 @@ import { AppProvider } from './context/AppContext';
 import { ThemeProvider } from './context/ThemeProvider';
 import { router } from './routes';
 
+
 export default function App() {
   return (
     <ThemeProvider>
