@@ -8,7 +8,6 @@ const authHeaders = () => ({
 });
 
 export const api = {
-  // ── Auth ──────────────────────────────────────
   register: (data: object) =>
     fetch(`${BASE_URL}/auth/register`, {
       method: "POST",
@@ -23,7 +22,6 @@ export const api = {
       body: JSON.stringify(data),
     }).then(r => r.json()),
 
-  // ── Menu ──────────────────────────────────────
   getMenu: (stallId: number) =>
     fetch(`${BASE_URL}/menu/${stallId}`).then(r => r.json()),
 
@@ -47,7 +45,6 @@ export const api = {
       headers: authHeaders(),
     }).then(r => r.json()),
 
-  // ── Orders ────────────────────────────────────
   placeOrder: (data: object) =>
     fetch(`${BASE_URL}/orders`, {
       method: "POST",
@@ -77,7 +74,6 @@ export const api = {
       body: JSON.stringify({ status }),
     }).then(r => r.json()),
 
-  // ── Queue ─────────────────────────────────────
   getQueue: (stallId: number) =>
     fetch(`${BASE_URL}/queue/${stallId}`).then(r => r.json()),
 
