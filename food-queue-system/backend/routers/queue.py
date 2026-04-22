@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from ..database import get_db
-from ..auth import get_current_user
-from .. import models
+from database import get_db
+from auth import get_current_user
+import models
 
 router = APIRouter(prefix="/queue", tags=["Queue"])
 
