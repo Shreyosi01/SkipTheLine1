@@ -49,18 +49,18 @@ export const Auth: React.FC = () => {
     }
   };
 
-  // Color Logic: Customer = Green | Vendor = Blue
+  // UPDATED COLOR LOGIC: Customer = Blue | Vendor = Green
   const activeColorClass = selectedMode === 'customer' 
-    ? 'focus:border-green-500 dark:focus:border-emerald-500 focus:ring-green-500/20 dark:focus:ring-emerald-500/20' 
-    : 'focus:border-blue-500 dark:focus:border-cyan-500 focus:ring-blue-500/20 dark:focus:ring-cyan-500/20';
+    ? 'focus:border-blue-500 dark:focus:border-cyan-500 focus:ring-blue-500/20 dark:focus:ring-cyan-500/20' 
+    : 'focus:border-green-500 dark:focus:border-emerald-500 focus:ring-green-500/20 dark:focus:ring-emerald-500/20';
 
   const gradientClass = selectedMode === 'customer'
-    ? 'from-green-600 via-emerald-600 to-teal-700'
-    : 'from-blue-600 via-cyan-600 to-indigo-700';
+    ? 'from-blue-600 via-cyan-600 to-indigo-700'
+    : 'from-green-600 via-emerald-600 to-teal-700';
 
   const btnGradientClass = selectedMode === 'customer'
-    ? 'from-green-500 to-emerald-500'
-    : 'from-blue-500 to-cyan-500';
+    ? 'from-blue-500 to-cyan-500'
+    : 'from-green-500 to-emerald-500';
 
   return (
     <div className="min-h-screen flex bg-white dark:bg-gray-900 transition-colors duration-200">
@@ -77,7 +77,7 @@ export const Auth: React.FC = () => {
         </motion.button>
       )}
 
-      {/* Left Sidebar Gradient Section */}
+      {/* Left Sidebar Section */}
       <motion.div
         initial={{ x: -100, opacity: 0 }}
         animate={{ x: 0, opacity: 1 }}
@@ -119,7 +119,7 @@ export const Auth: React.FC = () => {
         </div>
       </motion.div>
 
-      {/* Right Side Form Section */}
+      {/* Right Form Section */}
       <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-white dark:bg-gray-900 transition-colors duration-200">
         <motion.div
           initial={{ x: 100, opacity: 0 }}
@@ -127,17 +127,17 @@ export const Auth: React.FC = () => {
           transition={{ duration: 0.6 }}
           className="w-full max-w-md"
         >
-          {/* Logo Section */}
+          {/* Logo */}
           <div className="flex items-center justify-center gap-3 mb-8">
             <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-2xl bg-gradient-to-br ${btnGradientClass}`}>
               Q
             </div>
-            <span className={`text-3xl font-bold bg-gradient-to-r bg-clip-text text-transparent ${selectedMode === 'customer' ? 'from-green-500 to-emerald-500' : 'from-blue-500 to-cyan-500'}`}>
+            <span className={`text-3xl font-bold bg-gradient-to-r bg-clip-text text-transparent ${selectedMode === 'customer' ? 'from-blue-400 to-cyan-400' : 'from-green-400 to-emerald-400'}`}>
               QueueSkip
             </span>
           </div>
 
-          {/* Login/Register Tabs */}
+          {/* Auth Tabs */}
           <div className="flex mb-8 bg-gray-100 dark:bg-gray-800/50 rounded-lg p-1">
             <button
               onClick={() => setIsLogin(true)}
@@ -161,7 +161,7 @@ export const Auth: React.FC = () => {
             </button>
           </div>
 
-          {/* Mode Toggle (Slider) - Colors dynamic based on selectedMode */}
+          {/* Mode Slider */}
           <div className="mb-8 text-center">
             <p className="text-gray-600 dark:text-gray-400 text-sm mb-3">Select your mode</p>
             <div className="flex justify-center">
@@ -216,9 +216,7 @@ export const Auth: React.FC = () => {
 
                   <div className="relative">
                     <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <span className="absolute left-11 top-1/2 -translate-y-1/2 text-gray-500 font-medium">
-                      +91
-                    </span>
+                    <span className="absolute left-11 top-1/2 -translate-y-1/2 text-gray-500 font-medium">+91</span>
                     <input
                       type="tel"
                       value={phone}
@@ -268,7 +266,7 @@ export const Auth: React.FC = () => {
               disabled={isLoading}
               whileHover={{ 
                 scale: 1.02, 
-                boxShadow: selectedMode === 'customer' ? '0 0 30px rgba(34, 197, 94, 0.5)' : '0 0 30px rgba(59, 130, 246, 0.5)' 
+                boxShadow: selectedMode === 'customer' ? '0 0 30px rgba(59, 130, 246, 0.5)' : '0 0 30px rgba(34, 197, 94, 0.5)' 
               }}
               whileTap={{ scale: 0.98 }}
               className={`w-full py-4 text-white font-bold rounded-lg shadow-lg transition-all disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r ${btnGradientClass}`}
@@ -288,8 +286,8 @@ export const Auth: React.FC = () => {
               onClick={() => setIsLogin(!isLogin)}
               className={`font-semibold ${
                 selectedMode === 'customer'
-                  ? 'text-green-500 hover:text-green-400'
-                  : 'text-blue-500 hover:text-blue-400'
+                  ? 'text-blue-500 hover:text-blue-400'
+                  : 'text-green-500 hover:text-green-400'
               }`}
             >
               {isLogin ? 'Register' : 'Login'}
