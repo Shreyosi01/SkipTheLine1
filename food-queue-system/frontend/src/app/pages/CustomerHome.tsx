@@ -1,292 +1,46 @@
-import React, { useState, useMemo } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import {
-  Search,
-  Store,
-  Clock,
-  Package,
-  ChevronRight,
-  BadgeCheck,
-  Sparkles,
-  RefreshCw,
-  IndianRupee,
-  ArrowLeft,
-} from 'lucide-react';
-import { useApp, Stall, StallItem } from '../context/AppContext';
-import { Link, useParams, useNavigate } from 'react-router';
 
-// ─── helpers ──────────────────────────────────────────────────────────────────
-const validItems = (stall: Stall): StallItem[] =>
-  stall.items.filter((i) => i.name.trim() && i.price > 0);
+import React, { useState } from 'react';
+import { motion } from 'motion/react';
+import { Search, Filter, Clock, Package } from 'lucide-react';
+import { FoodCard } from '../components/FoodCard';
+import { mockStalls } from '../data/mockData';
+import { useApp } from '../context/AppContext';
+import { Link } from 'react-router';
 
-const GRADIENTS = [
-  'from-blue-500 via-cyan-500 to-indigo-500',
-  'from-violet-500 via-purple-500 to-blue-500',
-  'from-cyan-500 via-teal-500 to-emerald-400',
-  'from-rose-500 via-pink-500 to-fuchsia-500',
-  'from-orange-500 via-amber-500 to-yellow-400',
-  'from-indigo-500 via-blue-500 to-cyan-400',
-];
-
-// ─── Stall Card ───────────────────────────────────────────────────────────────
-const StallCard: React.FC<{ stall: Stall; index: number }> = ({ stall, index }) => {
-  const items = validItems(stall);
-  const gradient = GRADIENTS[index % GRADIENTS.length];
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 28 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.07 }}
-      whileHover={{ y: -5, scale: 1.01 }}
-      className="bg-white dark:bg-gray-800/60 rounded-2xl border border-gray-200 dark:border-gray-700/60 overflow-hidden shadow-sm hover:shadow-lg hover:shadow-blue-500/10 dark:hover:shadow-cyan-500/10 transition-all"
-    >
-      {/* Coloured banner */}
-      <div
-        className={`h-24 bg-gradient-to-br ${gradient} flex items-center justify-center relative overflow-hidden`}
-      >
-        <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_70%_30%,white,transparent)]" />
-        <div className="w-14 h-14 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center border border-white/30">
-          <span className="text-2xl font-black text-white">
-            {stall.stallName.charAt(0).toUpperCase()}
-          </span>
-        </div>
-
-        {/* New / Updated badge */}
-        <span
-          className={`absolute top-3 right-3 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold ${
-            stall.status === 'new'
-              ? 'bg-blue-600/90 text-white'
-              : 'bg-amber-500/90 text-white'
-          }`}
-        >
-          {stall.status === 'new' ? (
-            <><Sparkles className="w-3 h-3" /> New</>
-          ) : (
-            <><RefreshCw className="w-3 h-3" /> Updated</>
-          )}
-        </span>
-      </div>
-
-      <div className="p-4">
-        {/* Name */}
-        <h3 className="font-bold text-gray-900 dark:text-white text-lg leading-tight mb-3">
-          {stall.stallName}
-        </h3>
-
-        {/* Items preview */}
-        {items.length > 0 ? (
-          <div className="space-y-1.5 mb-4">
-            {items.slice(0, 3).map((item) => (
-              <div key={item.id} className="flex items-center justify-between text-sm">
-                <span className="text-gray-700 dark:text-gray-300 truncate mr-2">
-                  {item.name}
-                </span>
-                <span className="flex items-center gap-0.5 font-semibold text-gray-900 dark:text-white flex-shrink-0">
-                  <IndianRupee className="w-3 h-3 text-cyan-500" />
-                  {item.price}
-                </span>
-              </div>
-            ))}
-            {items.length > 3 && (
-              <p className="text-xs text-gray-400 dark:text-gray-500">
-                +{items.length - 3} more items
-              </p>
-            )}
-          </div>
-        ) : (
-          <p className="text-xs text-gray-400 dark:text-gray-500 mb-4">
-            No items listed yet
-          </p>
-        )}
-
-        {/* Footer */}
-        <div className="flex items-center justify-between pt-3 border-t border-gray-100 dark:border-gray-700/60">
-          <div className="flex items-center gap-1 text-gray-400 text-xs">
-            <BadgeCheck className="w-3.5 h-3.5 text-green-500" />
-            <span>Verified vendor</span>
-          </div>
-          <Link
-            to={`/stall/${stall.id}`}
-            className="flex items-center gap-1 text-blue-500 dark:text-cyan-400 text-sm font-semibold hover:gap-2 transition-all"
-          >
-            View Menu <ChevronRight className="w-4 h-4" />
-          </Link>
-        </div>
-      </div>
-    </motion.div>
-  );
-};
-
-// ─── Stall Detail  (route: /stall/:id) ───────────────────────────────────────
-// ─── Detective Stall Detail  (route: /stall/:id) ─────────────────────────
-export const StallDetail: React.FC = () => {
-  const { stalls } = useApp();
-  const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
-  
-  // Try to find the stall using both 'id' and '_id' just in case
-  const stall = stalls.find((s) => String(s.id) === String(id) || String((s as any)._id) === String(id));
-
-  if (!stall) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Stall not found 😢</h2>
-        
-        {/* 🚨 DEBUGGING BOX 🚨 */}
-        <div className="w-full max-w-lg bg-gray-900 p-6 rounded-xl shadow-lg font-mono text-sm text-left mb-6 overflow-x-auto border border-red-500">
-          <p className="text-yellow-400 font-bold mb-2">--- DEBUG INFO ---</p>
-          <p className="text-white">1. URL ID we are looking for: <span className="text-cyan-400">"{id}"</span></p>
-          <p className="text-white">2. Total stalls in state: <span className="text-cyan-400">{stalls?.length || 0}</span></p>
-          
-          <div className="mt-4">
-            <p className="text-gray-400 mb-1">Available Stalls in Memory:</p>
-            {stalls?.length === 0 ? (
-              <p className="text-red-400">STATE IS EMPTY! (Context lost on navigation?)</p>
-            ) : (
-              stalls.map((s, i) => (
-                <div key={i} className="pl-4 border-l-2 border-gray-700 mb-2">
-                  <p className="text-green-400">Name: {s.stallName}</p>
-                  <p className="text-blue-400">id: {s.id || 'UNDEFINED'}</p>
-                  {/* @ts-ignore */}
-                  <p className="text-purple-400">_id: {s._id || 'UNDEFINED'}</p>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-
-        <button
-          onClick={() => navigate('/')}
-          className="mt-4 px-6 py-2 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 transition-colors"
-        >
-          ← Go Back
-        </button>
-      </div>
-    );
-  }
-
-  
-
-  const items = validItems(stall);
-  const idx = stalls.indexOf(stall);
-  const gradient = GRADIENTS[idx % GRADIENTS.length];
-
-  return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pt-20 pb-16 transition-colors duration-200">
-      <div className="max-w-2xl mx-auto px-4 sm:px-6">
-        {/* Back */}
-        <motion.button
-          initial={{ opacity: 0, x: -10 }}
-          animate={{ opacity: 1, x: 0 }}
-          onClick={() => navigate('/')}
-          className="flex items-center gap-2 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-cyan-400 transition-colors mb-6 group"
-        >
-          <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-          <span className="text-sm font-medium">Back to stalls</span>
-        </motion.button>
-
-        {/* Banner */}
-        <motion.div
-          initial={{ opacity: 0, y: -16 }}
-          animate={{ opacity: 1, y: 0 }}
-          className={`h-40 rounded-2xl bg-gradient-to-br ${gradient} flex items-center justify-center relative overflow-hidden mb-6`}
-        >
-          <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_70%_30%,white,transparent)]" />
-          <div className="text-center text-white relative z-10">
-            <div className="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center border border-white/30 mx-auto mb-2">
-              <span className="text-3xl font-black">
-                {stall.stallName.charAt(0).toUpperCase()}
-              </span>
-            </div>
-            <h1 className="text-2xl font-bold">{stall.stallName}</h1>
-            <p className="text-white/80 text-sm">
-              Updated{' '}
-              {new Date(stall.updatedAt).toLocaleDateString('en-IN', {
-                day: 'numeric',
-                month: 'short',
-                year: 'numeric',
-              })}
-            </p>
-          </div>
-          <span
-            className={`absolute top-4 right-4 inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold ${
-              stall.status === 'new'
-                ? 'bg-blue-600/90 text-white'
-                : 'bg-amber-500/90 text-white'
-            }`}
-          >
-            {stall.status === 'new' ? '✨ New' : '🔄 Updated'}
-          </span>
-        </motion.div>
-
-        {/* Menu */}
-        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Menu</h2>
-
-        {items.length === 0 ? (
-          <div className="text-center py-12 bg-white dark:bg-gray-800/60 rounded-2xl border border-gray-200 dark:border-gray-700">
-            <Store className="w-10 h-10 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
-            <p className="text-gray-400 dark:text-gray-500">No items listed yet</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {items.map((item, i) => (
-              <motion.div
-                key={item.id}
-                initial={{ opacity: 0, x: -16 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: i * 0.06 }}
-                className="flex items-center justify-between p-4 bg-white dark:bg-gray-800/60 rounded-xl border border-gray-200 dark:border-gray-700/60 hover:border-blue-200 dark:hover:border-cyan-700/50 hover:shadow-sm transition-all"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <span className="w-2 h-2 rounded-full bg-gradient-to-br from-blue-400 to-cyan-400 flex-shrink-0" />
-                  <div className="min-w-0">
-                    <p className="font-semibold text-gray-900 dark:text-white truncate">
-                      {item.name}
-                    </p>
-                    {item.description && (
-                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5 truncate">
-                        {item.description}
-                      </p>
-                    )}
-                  </div>
-                </div>
-                <div className="flex items-center gap-0.5 ml-4 flex-shrink-0">
-                  <IndianRupee className="w-3.5 h-3.5 text-cyan-500 dark:text-cyan-400" />
-                  <span className="font-bold text-gray-900 dark:text-white">{item.price}</span>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
-// ─── Customer Home  (route: "/") ──────────────────────────────────────────────
 export const CustomerHome: React.FC = () => {
-  // ✅ reads from AppContext — the same array vendors write to via createStall/updateStall
-  const { stalls, orders } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('All');
+  const { orders } = useApp();
 
+  const categories = [
+    'All',
+    'Burgers',
+    'Mexican',
+    'Japanese',
+    'South Indian',
+    'Indian',
+    'Chinese',
+    'Italian',
+    'Street Food',
+    'Desserts',
+    'Sandwiches',
+    'Beverages',
+    'Fried Chicken'
+  ];
+
+  // Get recent orders (last 3)
   const recentOrders = orders.slice(-3).reverse();
 
-  const filteredStalls = useMemo(() => {
-    const q = searchTerm.trim().toLowerCase();
-    if (!q) return stalls;
-    return stalls.filter(
-      (s) =>
-        s.stallName.toLowerCase().includes(q) ||
-        s.items.some((it) => it.name.toLowerCase().includes(q))
-    );
-  }, [stalls, searchTerm]);
+  const filteredStalls = mockStalls.filter((stall) => {
+    const matchesSearch = stall.name.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory = selectedCategory === 'All' || stall.category === selectedCategory;
+    return matchesSearch && matchesCategory;
+  });
 
   return (
     <div className="min-h-screen bg-white dark:bg-gray-900 pt-20 pb-12 transition-colors duration-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-
-        {/* Hero */}
+        {/* Hero Section */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -313,12 +67,12 @@ export const CustomerHome: React.FC = () => {
           </motion.p>
         </motion.div>
 
-        {/* Search */}
+        {/* Search Bar */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
-          className="mb-10"
+          className="mb-8"
         >
           <div className="relative max-w-2xl mx-auto">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -326,23 +80,46 @@ export const CustomerHome: React.FC = () => {
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search stalls or food items…"
-              className="w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-gray-800/50 backdrop-blur-sm border border-gray-200 dark:border-purple-500/30 rounded-xl text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 dark:focus:border-cyan-500 focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-cyan-500/20 transition-all"
+              placeholder="Search for food stalls..."
+              className="w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-gray-800/50 backdrop-blur-sm border border-gray-200 dark:border-purple-500/30 rounded-xl text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:border-orange-500 dark:focus:border-purple-500 focus:ring-2 focus:ring-orange-500/20 dark:focus:ring-purple-500/20 transition-all"
             />
           </div>
         </motion.div>
 
-        {/* Recent Orders */}
+        {/* Category Filters */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.4 }}
+          className="flex items-center gap-3 mb-8 overflow-x-auto pb-2"
+        >
+          <Filter className="w-5 h-5 text-gray-500 dark:text-gray-400 flex-shrink-0" />
+          {categories.map((category) => (
+            <motion.button
+              key={category}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setSelectedCategory(category)}
+              className={`px-6 py-2 rounded-full font-semibold transition-all whitespace-nowrap ${
+                selectedCategory === category
+                  ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-lg'
+                  : 'bg-gray-100 dark:bg-gray-800/50 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white border border-gray-200 dark:border-purple-500/20'
+              }`}
+            >
+              {category}
+            </motion.button>
+          ))}
+        </motion.div>
+
+        {/* Recent Orders Section */}
         {recentOrders.length > 0 && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.45 }}
-            className="mb-10"
+            transition={{ delay: 0.5 }}
+            className="mb-8"
           >
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
-              Recent Orders
-            </h2>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Recent Orders</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {recentOrders.map((order, index) => (
                 <Link key={order.id} to={`/order/${order.id}`}>
@@ -371,9 +148,7 @@ export const CustomerHome: React.FC = () => {
                         {order.status}
                       </span>
                     </div>
-                    <p className="text-gray-900 dark:text-white font-semibold mb-1">
-                      {order.stallName}
-                    </p>
+                    <p className="text-gray-900 dark:text-white font-semibold mb-1">{order.stallName}</p>
                     <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
                       <div className="flex items-center gap-1">
                         <Package className="w-4 h-4" />
@@ -394,53 +169,22 @@ export const CustomerHome: React.FC = () => {
           </motion.div>
         )}
 
-        {/* Stalls grid */}
-        <AnimatePresence mode="wait">
-          {stalls.length === 0 ? (
-            <motion.div
-              key="empty"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="text-center py-24"
-            >
-              <div className="w-20 h-20 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-6">
-                <Store className="w-10 h-10 text-gray-400" />
-              </div>
-              <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-                No Stalls Open Yet
-              </h3>
-              <p className="text-gray-500 dark:text-gray-400 max-w-md mx-auto">
-                Vendors are still setting up. Check back soon — exciting food is on its way!
-              </p>
-            </motion.div>
-          ) : filteredStalls.length === 0 ? (
-            <motion.div
-              key="no-results"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="text-center py-20"
-            >
-              <p className="text-gray-500 dark:text-gray-400 text-xl">
-                No stalls match your search
-              </p>
-            </motion.div>
-          ) : (
-            <motion.div
-              key="grid"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
-            >
-              {filteredStalls.map((stall, index) => (
-                <StallCard key={stall.id} stall={stall} index={index} />
-              ))}
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* Stalls Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredStalls.map((stall, index) => (
+            <FoodCard key={stall.id} stall={stall} index={index} />
+          ))}
+        </div>
 
+        {filteredStalls.length === 0 && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="text-center py-20"
+          >
+            <p className="text-gray-500 dark:text-gray-400 text-xl">No stalls found matching your criteria</p>
+          </motion.div>
+        )}
       </div>
     </div>
   );
