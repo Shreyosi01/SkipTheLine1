@@ -1,3 +1,5 @@
+orders.py
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
@@ -76,8 +78,14 @@ def get_order(order_id: int, db: Session = Depends(get_db),
 def vendor_orders(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     if current_user.role != "vendor":
         raise HTTPException(status_code=403, detail="Vendors only")
+    
+    # Get vendor's stall
+    stall = db.query(models.Stall).filter(models.Stall.owner_id == current_user.id).first()
+    if not stall:
+        raise HTTPException(status_code=403, detail="Vendor must create a stall first")
+    
     return db.query(models.Order).filter(
-        models.Order.stall_id == current_user.stall_id
+        models.Order.stall_id == stall.id
     ).order_by(models.Order.created_at.desc()).all()
 
 @router.patch("/{order_id}/status")
