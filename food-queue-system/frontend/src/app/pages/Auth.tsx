@@ -35,7 +35,7 @@ export const Auth: React.FC = () => {
         );
         toast.success('Account created successfully!');
       }
-      navigate(selectedMode === 'vendor' ? '/vendor' : '/');
+      navigate(selectedMode === 'vendor' ? '/vendor/stall' : '/');
     } catch (err: any) {
       toast.error(err.message || 'Something went wrong');
     }

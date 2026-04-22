@@ -26,6 +26,21 @@ export interface OrderItem {
   price: number;
   quantity: number;
 }
+export interface StallItem {
+  id: string;
+  name: string;
+  price: number;
+  description?: string;
+}
+
+export interface Stall {
+  id: string;
+  vendorId: string;
+  stallName: string;
+  items: StallItem[];
+  updatedAt: string;
+  status: 'new' | 'updated';
+}
 
 export interface Order {
   id: string;
@@ -39,12 +54,20 @@ export interface Order {
   timestamp: Date;
 }
 
+
 interface AppContextType {
   user: User | null;
   userMode: UserMode;
   cart: CartItem[];
   orders: Order[];
   isLoading: boolean;
+
+  // ✅ ADD HERE (INSIDE INTERFACE)
+  stalls: Stall[];
+  createStall: (name: string, items: StallItem[]) => Promise<void>;
+  updateStall: (id: string, name: string, items: StallItem[]) => Promise<void>;
+  getVendorStall: () => Stall | undefined;
+
   setUser: (user: User | null) => void;
   setUserMode: (mode: UserMode) => void;
   addToCart: (item: CartItem) => void;
@@ -57,7 +80,6 @@ interface AppContextType {
   logoutUser: () => void;
   fetchMyOrders: () => Promise<void>;
 }
-
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -65,6 +87,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [userMode, setUserMode] = useState<UserMode>('customer');
   const [cart, setCart] = useState<CartItem[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [stalls, setStalls] = useState<Stall[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
 
@@ -202,16 +225,55 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const clearCart = () => setCart([]);
+  const createStall = async (name: string, items: StallItem[]) => {
+  if (!user) return;
+
+  const newStall: Stall = {
+    id: Date.now().toString(),
+    vendorId: user.id,
+    stallName: name,
+    items,
+    updatedAt: new Date().toISOString(),
+    status: 'new',
+  };
+
+  setStalls((prev) => [...prev, newStall]);
+};
+
+const updateStall = async (id: string, name: string, items: StallItem[]) => {
+  setStalls((prev) =>
+    prev.map((stall) =>
+      stall.id === id
+        ? {
+            ...stall,
+            stallName: name,
+            items,
+            updatedAt: new Date().toISOString(),
+            status: 'updated',
+          }
+        : stall
+    )
+  );
+};
+
+const getVendorStall = () => {
+  return stalls.find((stall) => stall.vendorId === user?.id);
+};
 
   return (
-    <AppContext.Provider value={{
-      user, userMode, cart, orders, isLoading,
-      setUser, setUserMode,
-      addToCart, removeFromCart, clearCart,
-      addOrder, updateOrderStatus,
-      loginUser, registerUser, logoutUser,
-      fetchMyOrders,
-    }}>
+ <AppContext.Provider value={{
+  user, userMode, cart, orders, isLoading,
+  stalls, // ✅ ADD THIS
+  setUser, setUserMode,
+  addToCart, removeFromCart, clearCart,
+  addOrder, updateOrderStatus,
+  loginUser, registerUser, logoutUser,
+  fetchMyOrders,
+
+  createStall,      // ✅ ADD
+  updateStall,      // ✅ ADD
+  getVendorStall,   // ✅ ADD
+}}>
       {children}
     </AppContext.Provider>
   );
