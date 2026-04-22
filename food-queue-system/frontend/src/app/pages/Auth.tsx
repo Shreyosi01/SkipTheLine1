@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Mail, Lock, User, Sparkles, Sun, Moon } from 'lucide-react';
+import { Mail, Lock, User, Sparkles, Sun, Moon, Phone, Eye, EyeOff } from 'lucide-react';
 import { useApp, UserMode } from '../context/AppContext';
 import { useNavigate } from 'react-router';
 import { ModeToggle } from '../components/ModeToggle';
@@ -11,8 +11,11 @@ export const Auth: React.FC = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [selectedMode, setSelectedMode] = useState<UserMode>('customer');
+  
   const { loginUser, registerUser, isLoading } = useApp();
   const { theme, setTheme } = useTheme();
   const navigate = useNavigate();
@@ -29,9 +32,14 @@ export const Auth: React.FC = () => {
         await loginUser(email, password);
         toast.success('Welcome back!');
       } else {
+        const fullPhone = `+91${phone}`;
         await registerUser(
-          name, email, password, selectedMode,
-          selectedMode === 'vendor' ? 1 : undefined
+          name, 
+          email, 
+          password, 
+          selectedMode,
+          selectedMode === 'vendor' ? 1 : undefined,
+          fullPhone
         );
         toast.success('Account created successfully!');
       }
@@ -40,6 +48,19 @@ export const Auth: React.FC = () => {
       toast.error(err.message || 'Something went wrong');
     }
   };
+
+  // UPDATED COLOR LOGIC: Customer = Blue | Vendor = Green
+  const activeColorClass = selectedMode === 'customer' 
+    ? 'focus:border-blue-500 dark:focus:border-cyan-500 focus:ring-blue-500/20 dark:focus:ring-cyan-500/20' 
+    : 'focus:border-green-500 dark:focus:border-emerald-500 focus:ring-green-500/20 dark:focus:ring-emerald-500/20';
+
+  const gradientClass = selectedMode === 'customer'
+    ? 'from-blue-600 via-cyan-600 to-indigo-700'
+    : 'from-green-600 via-emerald-600 to-teal-700';
+
+  const btnGradientClass = selectedMode === 'customer'
+    ? 'from-blue-500 to-cyan-500'
+    : 'from-green-500 to-emerald-500';
 
   return (
     <div className="min-h-screen flex bg-white dark:bg-gray-900 transition-colors duration-200">
@@ -56,15 +77,12 @@ export const Auth: React.FC = () => {
         </motion.button>
       )}
 
+      {/* Left Sidebar Section */}
       <motion.div
         initial={{ x: -100, opacity: 0 }}
         animate={{ x: 0, opacity: 1 }}
         transition={{ duration: 0.6 }}
-        className={`hidden lg:flex lg:w-1/2 ${
-          selectedMode === 'customer'
-            ? 'bg-gradient-to-br from-blue-600 via-cyan-600 to-indigo-700'
-            : 'bg-gradient-to-br from-green-600 via-emerald-600 to-teal-700'
-        } relative overflow-hidden`}
+        className={`hidden lg:flex lg:w-1/2 bg-gradient-to-br ${gradientClass} relative overflow-hidden`}
       >
         <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1763619814380-1637cdf5f796?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwZW9wbGUlMjB3YWl0aW5nJTIwcXVldWUlMjBsaW5lfGVufDF8fHx8MTc3NTMyNzk0NHww&ixlib=rb-4.1.0&q=80&w=1080')] bg-cover bg-center opacity-20" />
         
@@ -101,6 +119,7 @@ export const Auth: React.FC = () => {
         </div>
       </motion.div>
 
+      {/* Right Form Section */}
       <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-white dark:bg-gray-900 transition-colors duration-200">
         <motion.div
           initial={{ x: 100, opacity: 0 }}
@@ -108,31 +127,23 @@ export const Auth: React.FC = () => {
           transition={{ duration: 0.6 }}
           className="w-full max-w-md"
         >
+          {/* Logo */}
           <div className="flex items-center justify-center gap-3 mb-8">
-            <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-2xl ${
-              selectedMode === 'customer'
-                ? 'bg-gradient-to-br from-blue-500 to-cyan-500'
-                : 'bg-gradient-to-br from-green-500 to-emerald-500'
-            }`}>
+            <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-2xl bg-gradient-to-br ${btnGradientClass}`}>
               Q
             </div>
-            <span className={`text-3xl font-bold bg-gradient-to-r bg-clip-text text-transparent ${
-              selectedMode === 'customer'
-                ? 'from-blue-400 to-cyan-400'
-                : 'from-green-400 to-emerald-400'
-            }`}>
+            <span className={`text-3xl font-bold bg-gradient-to-r bg-clip-text text-transparent ${selectedMode === 'customer' ? 'from-blue-400 to-cyan-400' : 'from-green-400 to-emerald-400'}`}>
               QueueSkip
             </span>
           </div>
 
+          {/* Auth Tabs */}
           <div className="flex mb-8 bg-gray-100 dark:bg-gray-800/50 rounded-lg p-1">
             <button
               onClick={() => setIsLogin(true)}
               className={`flex-1 py-3 rounded-md font-semibold transition-all ${
                 isLogin
-                  ? selectedMode === 'customer'
-                    ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-lg'
-                    : 'bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-lg'
+                  ? `bg-gradient-to-r ${btnGradientClass} text-white shadow-lg`
                   : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
               }`}
             >
@@ -142,9 +153,7 @@ export const Auth: React.FC = () => {
               onClick={() => setIsLogin(false)}
               className={`flex-1 py-3 rounded-md font-semibold transition-all ${
                 !isLogin
-                  ? selectedMode === 'customer'
-                    ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-lg'
-                    : 'bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-lg'
+                  ? `bg-gradient-to-r ${btnGradientClass} text-white shadow-lg`
                   : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
               }`}
             >
@@ -152,35 +161,71 @@ export const Auth: React.FC = () => {
             </button>
           </div>
 
+          {/* Mode Slider */}
           <div className="mb-8 text-center">
             <p className="text-gray-600 dark:text-gray-400 text-sm mb-3">Select your mode</p>
             <div className="flex justify-center">
-              <ModeToggle mode={selectedMode} onToggle={setSelectedMode} />
+              <div className="relative bg-gray-100 dark:bg-gray-800 p-1 rounded-full flex items-center w-64 h-12">
+                <motion.div
+                  className={`absolute h-10 w-[124px] rounded-full bg-gradient-to-r shadow-md ${btnGradientClass}`}
+                  animate={{
+                    x: selectedMode === 'customer' ? 0 : 128
+                  }}
+                  transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                />
+                <button
+                  onClick={() => setSelectedMode('customer')}
+                  className={`relative z-10 flex-1 text-sm font-bold transition-colors ${
+                    selectedMode === 'customer' ? 'text-white' : 'text-gray-500'
+                  }`}
+                >
+                  Customer
+                </button>
+                <button
+                  onClick={() => setSelectedMode('vendor')}
+                  className={`relative z-10 flex-1 text-sm font-bold transition-colors ${
+                    selectedMode === 'vendor' ? 'text-white' : 'text-gray-500'
+                  }`}
+                >
+                  Vendor
+                </button>
+              </div>
             </div>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <AnimatePresence mode="wait">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <AnimatePresence mode="popLayout">
               {!isLogin && (
                 <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="relative"
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="space-y-4"
                 >
-                  <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <input
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Full Name"
-                    required={!isLogin}
-                    className={`w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-purple-500/30 rounded-lg text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none transition-all ${
-                      selectedMode === 'customer'
-                        ? 'focus:border-blue-500 dark:focus:border-cyan-500 focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-cyan-500/20'
-                        : 'focus:border-green-500 dark:focus:border-emerald-500 focus:ring-2 focus:ring-green-500/20 dark:focus:ring-emerald-500/20'
-                    }`}
-                  />
+                  <div className="relative">
+                    <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <input
+                      type="text"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="Full Name"
+                      required={!isLogin}
+                      className={`w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-purple-500/30 rounded-lg text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 transition-all ${activeColorClass}`}
+                    />
+                  </div>
+
+                  <div className="relative">
+                    <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <span className="absolute left-11 top-1/2 -translate-y-1/2 text-gray-500 font-medium">+91</span>
+                    <input
+                      type="tel"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                      placeholder="Phone Number"
+                      required={!isLogin}
+                      className={`w-full pl-20 pr-4 py-4 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-purple-500/30 rounded-lg text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 transition-all ${activeColorClass}`}
+                    />
+                  </div>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -193,40 +238,38 @@ export const Auth: React.FC = () => {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="Email Address"
                 required
-                className={`w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-purple-500/30 rounded-lg text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none transition-all ${
-                  selectedMode === 'customer'
-                    ? 'focus:border-blue-500 dark:focus:border-cyan-500 focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-cyan-500/20'
-                    : 'focus:border-green-500 dark:focus:border-emerald-500 focus:ring-2 focus:ring-green-500/20 dark:focus:ring-emerald-500/20'
-                }`}
+                className={`w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-purple-500/30 rounded-lg text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 transition-all ${activeColorClass}`}
               />
             </div>
 
             <div className="relative">
               <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Password"
                 required
-                className={`w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-purple-500/30 rounded-lg text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none transition-all ${
-                  selectedMode === 'customer'
-                    ? 'focus:border-blue-500 dark:focus:border-cyan-500 focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-cyan-500/20'
-                    : 'focus:border-green-500 dark:focus:border-emerald-500 focus:ring-2 focus:ring-green-500/20 dark:focus:ring-emerald-500/20'
-                }`}
+                className={`w-full pl-12 pr-12 py-4 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-purple-500/30 rounded-lg text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 transition-all ${activeColorClass}`}
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+              >
+                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              </button>
             </div>
 
             <motion.button
               type="submit"
               disabled={isLoading}
-              whileHover={{ scale: 1.02, boxShadow: selectedMode === 'customer' ? '0 0 30px rgba(59, 130, 246, 0.5)' : '0 0 30px rgba(34, 197, 94, 0.5)' }}
+              whileHover={{ 
+                scale: 1.02, 
+                boxShadow: selectedMode === 'customer' ? '0 0 30px rgba(59, 130, 246, 0.5)' : '0 0 30px rgba(34, 197, 94, 0.5)' 
+              }}
               whileTap={{ scale: 0.98 }}
-              className={`w-full py-4 text-white font-bold rounded-lg shadow-lg transition-all disabled:opacity-60 disabled:cursor-not-allowed ${
-                selectedMode === 'customer'
-                  ? 'bg-gradient-to-r from-blue-500 to-cyan-500 hover:shadow-blue-500/50'
-                  : 'bg-gradient-to-r from-green-500 to-emerald-500 hover:shadow-green-500/50'
-              }`}
+              className={`w-full py-4 text-white font-bold rounded-lg shadow-lg transition-all disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r ${btnGradientClass}`}
             >
               {isLoading ? 'Please wait...' : isLogin ? 'Login' : 'Get Started'}
             </motion.button>
