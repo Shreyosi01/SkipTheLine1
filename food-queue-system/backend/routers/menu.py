@@ -16,7 +16,13 @@ def add_menu_item(data: schemas.MenuItemCreate, db: Session = Depends(get_db),
                   current_user=Depends(get_current_user)):
     if current_user.role != "vendor":
         raise HTTPException(status_code=403, detail="Only vendors can add menu items")
-    item = models.MenuItem(**data.dict(), stall_id=current_user.stall_id)
+    
+    # Get the vendor's stall
+    stall = db.query(models.Stall).filter(models.Stall.owner_id == current_user.id).first()
+    if not stall:
+        raise HTTPException(status_code=403, detail="Vendor must create a stall first")
+    
+    item = models.MenuItem(**data.dict(), stall_id=stall.id)
     db.add(item)
     db.commit()
     db.refresh(item)

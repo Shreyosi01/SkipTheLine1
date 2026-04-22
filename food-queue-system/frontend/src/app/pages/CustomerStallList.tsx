@@ -55,8 +55,8 @@ const StallCard: React.FC<{
   onToggle: () => void;
 }> = ({ stall, index, isExpanded, onToggle }) => {
   const items = validItems(stall);
-  const minPrice = items?.length ? Math.min(...items.map((i) => i.price)) : 0;
-  const maxPrice = items?.length ? Math.max(...items.map((i) => i.price)) : 0;
+  const minPrice = items.length ? Math.min(...items.map((i) => i.price)) : 0;
+  const maxPrice = items.length ? Math.max(...items.map((i) => i.price)) : 0;
 
   const GRADIENTS = [
     'from-blue-500 via-cyan-500 to-indigo-500',
@@ -66,7 +66,7 @@ const StallCard: React.FC<{
     'from-orange-500 via-amber-500 to-yellow-400',
     'from-indigo-500 via-blue-500 to-cyan-400',
   ];
-  const gradient = GRADIENTS[index % GRADIENTS?.length];
+  const gradient = GRADIENTS[index % GRADIENTS.length];
 
   return (
     <motion.div
@@ -122,9 +122,9 @@ const StallCard: React.FC<{
               <div className="flex items-center gap-3 mt-1 flex-wrap">
                 <span className="flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500">
                   <UtensilsCrossed className="w-3 h-3" />
-                  {items?.length} item{items?.length !== 1 ? 's' : ''}
+                  {items.length} item{items.length !== 1 ? 's' : ''}
                 </span>
-                {items?.length > 0 && (
+                {items.length > 0 && (
                   <span className="flex items-center gap-0.5 text-xs text-gray-400 dark:text-gray-500">
                     <IndianRupee className="w-3 h-3" />
                     {minPrice === maxPrice ? `${minPrice}` : `${minPrice} – ${maxPrice}`}
@@ -165,7 +165,7 @@ const StallCard: React.FC<{
                 Menu
               </p>
 
-              {items?.length === 0 ? (
+              {items.length === 0 ? (
                 <div className="text-center py-6">
                   <UtensilsCrossed className="w-8 h-8 text-gray-300 dark:text-gray-600 mx-auto mb-2" />
                   <p className="text-sm text-gray-400 dark:text-gray-500">No items listed yet</p>
@@ -243,11 +243,11 @@ export const CustomerStallList: React.FC = () => {
 
   // Summary counts
   const totalItems = stalls.reduce(
-    (acc, s) => acc + s.items.filter((i) => i.name && i.price > 0)?.length,
+    (acc, s) => acc + s.items.filter((i) => i.name && i.price > 0).length,
     0
   );
-  const newCount = stalls.filter((s) => s.status === 'new')?.length;
-  const updatedCount = stalls.filter((s) => s.status === 'updated')?.length;
+  const newCount = stalls.filter((s) => s.status === 'new').length;
+  const updatedCount = stalls.filter((s) => s.status === 'updated').length;
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pt-20 pb-16 transition-colors duration-200">
@@ -271,7 +271,7 @@ export const CustomerStallList: React.FC = () => {
         </motion.div>
 
         {/* Summary pills */}
-        {stalls?.length > 0 && (
+        {stalls.length > 0 && (
           <motion.div
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
@@ -279,7 +279,7 @@ export const CustomerStallList: React.FC = () => {
             className="flex items-center gap-2 mb-6 flex-wrap"
           >
             <span className="px-3 py-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-full text-xs font-semibold text-gray-600 dark:text-gray-300">
-              {stalls?.length} stall{stalls?.length !== 1 ? 's' : ''}
+              {stalls.length} stall{stalls.length !== 1 ? 's' : ''}
             </span>
             <span className="px-3 py-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-full text-xs font-semibold text-gray-600 dark:text-gray-300">
               {totalItems} menu items
@@ -330,8 +330,8 @@ export const CustomerStallList: React.FC = () => {
 
         {/* Stall list */}
         <AnimatePresence mode="wait">
-          {filtered?.length === 0 ? (
-            <EmptyState key="empty" isFiltered={search.trim()?.length > 0} />
+          {filtered.length === 0 ? (
+            <EmptyState key="empty" isFiltered={search.trim().length > 0} />
           ) : (
             <motion.div
               key="list"

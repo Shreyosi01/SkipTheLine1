@@ -7,8 +7,8 @@ class RegisterRequest(BaseModel):
     name: str
     email: str
     password: str
+    phone: Optional[str] = None  # phone for vendors
     role: str           # "customer" or "vendor"
-    stall_id: Optional[int] = None
 
 class LoginRequest(BaseModel):
     email: str
@@ -18,6 +18,23 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str
     user: dict
+
+# ── Stall ─────────────────────────────────────────
+class StallCreate(BaseModel):
+    name: str
+    category: str  # "snacks", "beverages", etc.
+    avatar: Optional[str] = None  # preset avatar choice
+
+class StallResponse(BaseModel):
+    id: int
+    name: str
+    category: str
+    avatar: Optional[str]
+    image_url: Optional[str]
+    rating: float
+    owner_id: int
+    class Config:
+        from_attributes = True
 
 # ── Menu ──────────────────────────────────────────
 class MenuItemCreate(BaseModel):

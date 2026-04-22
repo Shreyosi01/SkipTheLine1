@@ -15,8 +15,8 @@ def register(data: schemas.RegisterRequest, db: Session = Depends(get_db)):
         name=data.name,
         email=data.email,
         password=auth_utils.hash_password(data.password),
-        role=data.role,
-        stall_id=data.stall_id
+        phone=data.phone,
+        role=data.role
     )
     db.add(user)
     db.commit()
@@ -27,7 +27,7 @@ def register(data: schemas.RegisterRequest, db: Session = Depends(get_db)):
         "access_token": token,
         "token_type": "bearer",
         "user": {"id": user.id, "name": user.name, "email": user.email,
-                 "role": user.role, "stall_id": user.stall_id}
+                 "phone": user.phone, "role": user.role}
     }
 
 @router.post("/login", response_model=schemas.TokenResponse)
@@ -41,5 +41,5 @@ def login(data: schemas.LoginRequest, db: Session = Depends(get_db)):
         "access_token": token,
         "token_type": "bearer",
         "user": {"id": user.id, "name": user.name, "email": user.email,
-                 "role": user.role, "stall_id": user.stall_id}
+                 "phone": user.phone, "role": user.role}
     }

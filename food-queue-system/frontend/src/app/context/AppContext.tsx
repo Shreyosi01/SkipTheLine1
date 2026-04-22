@@ -26,6 +26,21 @@ export interface OrderItem {
   price: number;
   quantity: number;
 }
+export interface StallItem {
+  id: string;
+  name: string;
+  price: number;
+  description?: string;
+}
+
+export interface Stall {
+  id: string;
+  vendorId: string;
+  stallName: string;
+  items: StallItem[];
+  updatedAt: string;
+  status: 'new' | 'updated';
+}
 
 export interface Order {
   id: string;
@@ -39,12 +54,17 @@ export interface Order {
   timestamp: Date;
 }
 
+
 interface AppContextType {
   user: User | null;
   userMode: UserMode;
   cart: CartItem[];
   orders: Order[];
   isLoading: boolean;
+  stalls: Stall[];
+  createStall: (name: string, items: StallItem[]) => Promise<void>;
+  updateStall: (id: string, name: string, items: StallItem[]) => Promise<void>;
+  getVendorStall: () => Stall | undefined;
   setUser: (user: User | null) => void;
   setUserMode: (mode: UserMode) => void;
   addToCart: (item: CartItem) => void;
@@ -53,7 +73,7 @@ interface AppContextType {
   addOrder: (order: Order) => void;
   updateOrderStatus: (id: string, status: OrderStatus) => void;
   loginUser: (email: string, password: string) => Promise<void>;
-  registerUser: (name: string, email: string, password: string, role: UserMode, stallId?: number) => Promise<void>;
+  registerUser: (name: string, email: string, password: string, role: UserMode, stallId?: number, phone?: string) => Promise<void>; // ✅ Fixed
   logoutUser: () => void;
   fetchMyOrders: () => Promise<void>;
 }
@@ -65,8 +85,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [userMode, setUserMode] = useState<UserMode>('customer');
   const [cart, setCart] = useState<CartItem[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [stalls, setStalls] = useState<Stall[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-
 
   useEffect(() => {
     const savedUser = localStorage.getItem('user');
@@ -88,7 +108,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  // ── Auth ──────────────────────────────────────────────────────────
   const loginUser = async (email: string, password: string) => {
     setIsLoading(true);
     try {
@@ -107,18 +126,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setUser(u);
       setUserMode(u.mode);
       await fetchMyOrders();
+    } catch (error: any) {
+      throw error; // Let the Auth component catch this for toast
     } finally {
       setIsLoading(false);
     }
   };
 
   const registerUser = async (
-    name: string, email: string, password: string,
-    role: UserMode, stallId?: number
+    name: string, 
+    email: string, 
+    password: string,
+    role: UserMode, 
+    stallId?: number,
+    phone?: string // ✅ Added
   ) => {
     setIsLoading(true);
     try {
-      const res = await api.register({ name, email, password, role, stall_id: stallId });
+      const res = await api.register({ 
+        name, 
+        email, 
+        password, 
+        role, 
+        stall_id: stallId,
+        phone // ✅ Passed to API
+      });
+      
       if (res.detail) throw new Error(res.detail);
 
       localStorage.setItem('token', res.access_token);
@@ -132,6 +165,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
       setUser(u);
       setUserMode(u.mode);
+    } catch (error: any) {
+      throw error;
     } finally {
       setIsLoading(false);
     }
@@ -141,14 +176,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setUser(null);
     setOrders([]);
     setCart([]);
+    localStorage.removeItem('user');
+    localStorage.removeItem('token');
   };
 
-  
   const fetchMyOrders = async () => {
     try {
       const res = await api.myOrders();
       if (!Array.isArray(res)) return;
-
       
       const mapped: Order[] = res.map((o: any) => ({
         id: String(o.id),
@@ -182,7 +217,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
   };
 
-  
   const addToCart = (item: CartItem) => {
     setCart((prev) => {
       const existing = prev.find((i) => i.id === item.id);
@@ -203,14 +237,50 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const clearCart = () => setCart([]);
 
+  const createStall = async (name: string, items: StallItem[]) => {
+    if (!user) return;
+    const newStall: Stall = {
+      id: Date.now().toString(),
+      vendorId: user.id,
+      stallName: name,
+      items,
+      updatedAt: new Date().toISOString(),
+      status: 'new',
+    };
+    setStalls((prev) => [...prev, newStall]);
+  };
+
+  const updateStall = async (id: string, name: string, items: StallItem[]) => {
+    setStalls((prev) =>
+      prev.map((stall) =>
+        stall.id === id
+          ? {
+              ...stall,
+              stallName: name,
+              items,
+              updatedAt: new Date().toISOString(),
+              status: 'updated',
+            }
+          : stall
+      )
+    );
+  };
+
+  const getVendorStall = () => {
+    return stalls.find((stall) => stall.vendorId === user?.id);
+  };
+
   return (
     <AppContext.Provider value={{
-      user, userMode, cart, orders, isLoading,
+      user, userMode, cart, orders, isLoading, stalls,
       setUser, setUserMode,
       addToCart, removeFromCart, clearCart,
       addOrder, updateOrderStatus,
       loginUser, registerUser, logoutUser,
       fetchMyOrders,
+      createStall,
+      updateStall,
+      getVendorStall,
     }}>
       {children}
     </AppContext.Provider>

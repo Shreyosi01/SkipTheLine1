@@ -171,7 +171,11 @@ export const Profile: React.FC = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-green-200 dark:border-green-500/30 backdrop-blur-sm rounded-xl p-8 border mb-8"
+          className={`bg-gradient-to-br ${
+            userMode === 'customer'
+              ? 'from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-green-200 dark:border-green-500/30'
+              : 'from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-green-200 dark:border-green-500/30'
+          } backdrop-blur-sm rounded-xl p-8 border mb-8`}
         >
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-6">
@@ -258,7 +262,9 @@ export const Profile: React.FC = () => {
             <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Last Order</h3>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 flex items-center justify-center text-white font-bold">
+                <div className={`w-12 h-12 rounded-full bg-gradient-to-r ${
+                  userMode === 'customer' ? 'from-blue-500 to-cyan-500' : 'from-blue-500 to-cyan-500'
+                } flex items-center justify-center text-white font-bold`}>
                   {lastOrder.token}
                 </div>
                 <div>
@@ -271,13 +277,65 @@ export const Profile: React.FC = () => {
               </div>
               <div className="text-right">
                 <p className="text-2xl font-bold text-green-600 dark:text-green-400">₹{lastOrder.total.toFixed(2)}</p>
-                <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-green-500/20 text-green-600 dark:text-green-400">
+                <span
+                  className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${
+                    lastOrder.status === 'placed'
+                      ? 'bg-green-500/20 text-green-600 dark:text-green-400'
+                      : lastOrder.status === 'preparing'
+                      ? 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400'
+                      : lastOrder.status === 'ready'
+                      ? 'bg-green-500/20 text-green-600 dark:text-green-400'
+                      : 'bg-purple-500/20 text-purple-600 dark:text-purple-400'
+                  }`}
+                >
                   {lastOrder.status}
                 </span>
               </div>
             </div>
           </motion.div>
         )}
+
+        {/* Recent Activity */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.6 }}
+          className="bg-gray-50 dark:bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-200 dark:border-purple-500/20 mb-8"
+        >
+          <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Recent Activity</h3>
+          {userOrders.length === 0 ? (
+            <p className="text-gray-600 dark:text-gray-400 text-center py-8">No orders yet</p>
+          ) : (
+            <div className="space-y-3">
+              {userOrders.slice(-5).reverse().map((order, index) => (
+                <motion.div
+                  key={order.id}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: index * 0.1 }}
+                  className="flex items-center justify-between p-3 bg-white dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-700/50"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`w-8 h-8 rounded-full bg-gradient-to-r ${
+                      userMode === 'customer' ? 'from-blue-500 to-cyan-500' : 'from-blue-500 to-cyan-500'
+                    } flex items-center justify-center text-white text-xs font-bold`}>
+                      {order.token}
+                    </div>
+                    <div>
+                      <p className="text-gray-900 dark:text-white text-sm font-semibold">
+                        {order.stallName} - {order.items.length} items
+                      </p>
+                      <p className="text-gray-600 dark:text-gray-400 text-xs">
+                        {new Date(order.timestamp).toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                  <p className="text-gray-900 dark:text-white font-semibold">₹{order.total.toFixed(2)}</p>
+                </motion.div>
+              ))}
+            </div>
+          )}
+        </motion.div>
 
         {/* Account Actions */}
         <motion.div
@@ -444,8 +502,22 @@ export const Profile: React.FC = () => {
                 Are you sure you want to delete your account? This action cannot be undone and all your data will be permanently removed.
               </p>
               <div className="flex gap-3">
-                <button onClick={() => setShowDeleteConfirm(false)} className="flex-1 py-3 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white font-semibold rounded-lg">Cancel</button>
-                <button onClick={handleDeleteAccount} className="flex-1 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white font-semibold rounded-lg shadow-lg">Delete</button>
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="flex-1 py-3 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white font-semibold rounded-lg"
+                >
+                  Cancel
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={handleDeleteAccount}
+                  className="flex-1 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white font-semibold rounded-lg shadow-lg"
+                >
+                  Delete
+                </motion.button>
               </div>
             </motion.div>
           </motion.div>

@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { ShoppingCart, Trash2, Plus, Minus, ArrowRight } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { useNavigate } from 'react-router';
-import { mockStalls, generateToken } from '../data/mockData';
+import { mockStalls, generateToken } from '../data/mockdata';
 import { toast } from 'sonner';
 import { api } from '../../api/client';
 

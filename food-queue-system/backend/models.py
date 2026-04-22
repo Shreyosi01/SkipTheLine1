@@ -8,8 +8,11 @@ class Stall(Base):
     id         = Column(Integer, primary_key=True, index=True)
     name       = Column(String)
     category   = Column(String)
+    avatar     = Column(String, nullable=True)  # preset avatar choice
     image_url  = Column(String, nullable=True)
     rating     = Column(Float, default=4.0)
+    owner_id   = Column(Integer, ForeignKey("users.id"))  # vendor who owns this stall
+    owner      = relationship("User", back_populates="stalls")
     menu_items = relationship("MenuItem", back_populates="stall")
     orders     = relationship("Order", back_populates="stall")
 
@@ -19,8 +22,9 @@ class User(Base):
     name     = Column(String)
     email    = Column(String, unique=True, index=True)
     password = Column(String)
-    role     = Column(String)
-    stall_id = Column(Integer, ForeignKey("stalls.id"), nullable=True)
+    phone    = Column(String, nullable=True)  # phone number for vendors
+    role     = Column(String)  # "customer" or "vendor"
+    stalls   = relationship("Stall", back_populates="owner")  # vendors can own stalls
     orders   = relationship("Order", back_populates="customer")
 
 class MenuItem(Base):
