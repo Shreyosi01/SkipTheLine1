@@ -10,6 +10,8 @@ export interface User {
   email: string;
   mode: UserMode;
   stallId?: string;
+  phone?: string; // Added phone
+  avatar?: string; // Added avatar
 }
 
 export interface CartItem {
@@ -157,6 +159,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         email: res.user.email,
         mode: res.user.role as UserMode,
         stallId: res.user.stall_id ? String(res.user.stall_id) : undefined,
+        phone: res.user.phone, // Map phone
+        avatar: res.user.avatar, // Map avatar
       };
       
       setUser(u);
@@ -196,6 +200,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         email: res.user.email,
         mode: res.user.role as UserMode,
         stallId: res.user.stall_id ? String(res.user.stall_id) : undefined,
+        phone: res.user.phone || phone, // Map phone (fallback to passed variable)
       };
       
       setUser(u);

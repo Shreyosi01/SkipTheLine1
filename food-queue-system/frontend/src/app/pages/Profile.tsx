@@ -30,13 +30,13 @@ const CUSTOMER_AVATARS = [
 ];
 
 export const Profile: React.FC = () => {
-  const { user, orders, setUser, userMode } = useApp();
+  const { user, orders, setUser, userMode, logoutUser } = useApp(); // ADDED logoutUser
   const navigate = useNavigate();
   
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
   
-  // Extract just the digits in case +91 was previously saved with it
+  // Extract just the digits for the edit input field
   const initialPhoneDigits = user?.phone?.replace(/\D/g, '').slice(-10) || '';
   
   const [editName, setEditName] = useState(user?.name || '');
@@ -58,13 +58,13 @@ export const Profile: React.FC = () => {
   const lastOrder = userOrders.length > 0 ? userOrders[userOrders.length - 1] : null;
 
   const handleLogout = () => {
-    setUser(null);
+    logoutUser(); // Call Context logout to clear cart and orders
     toast.success('Logged out successfully');
     navigate('/auth');
   };
 
   const handleDeleteAccount = () => {
-    setUser(null);
+    logoutUser(); // Call Context logout to clear everything
     toast.success('Account deleted successfully');
     navigate('/auth');
   };
@@ -75,6 +75,9 @@ export const Profile: React.FC = () => {
       setEditPhone(value);
     }
   };
+
+  // Cleanly display phone with +91 format internally to compare
+  const displayPhone = user.phone ? user.phone.replace(/\D/g, '').slice(-10) : '';
 
   const handleUpdateProfile = (e: React.FormEvent) => {
     e.preventDefault();
@@ -88,7 +91,7 @@ export const Profile: React.FC = () => {
     const hasChanges = 
       editName !== user.name || 
       editEmail !== user.email || 
-      editPhone !== (user.phone?.replace(/\D/g, '').slice(-10) || '') ||
+      editPhone !== displayPhone ||
       editAvatar !== (user.avatar || '');
 
     if (!hasChanges) {
@@ -101,7 +104,7 @@ export const Profile: React.FC = () => {
       ...user,
       name: editName,
       email: editEmail,
-      phone: editPhone, // Just storing the 10 digits
+      phone: editPhone ? `+91${editPhone}` : '', // Append +91 back to save it cleanly
       avatar: editAvatar,
     });
 
@@ -150,8 +153,6 @@ export const Profile: React.FC = () => {
   ];
 
   const avatarsToDisplay = userMode === 'vendor' ? SHOP_AVATARS : CUSTOMER_AVATARS;
-  // Cleanly display phone with +91 format
-  const displayPhone = user.phone ? user.phone.replace(/\D/g, '').slice(-10) : '';
 
   return (
     <div className="min-h-screen bg-white dark:bg-gray-900 pt-20 pb-12 transition-colors duration-200">
