@@ -1,16 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  Search,
-  Store,
-  Clock,
-  Package,
-  ChevronRight,
-  BadgeCheck,
-  Sparkles,
-  RefreshCw,
-  IndianRupee,
-  ArrowLeft,
+  Search, Store, Clock, Package, ChevronRight, BadgeCheck, Sparkles, RefreshCw, IndianRupee, ArrowLeft,
 } from 'lucide-react';
 import { useApp, Stall, StallItem } from '../context/AppContext';
 import { Link, useParams, useNavigate } from 'react-router';
@@ -41,23 +32,33 @@ const StallCard: React.FC<{ stall: Stall; index: number }> = ({ stall, index }) 
       whileHover={{ y: -5, scale: 1.01 }}
       className="bg-white dark:bg-gray-800/60 rounded-2xl border border-gray-200 dark:border-gray-700/60 overflow-hidden shadow-sm hover:shadow-lg hover:shadow-blue-500/10 dark:hover:shadow-cyan-500/10 transition-all"
     >
-      {/* Coloured banner */}
+      {/* Coloured banner with dynamic Image rendering */}
       <div
         className={`h-24 bg-gradient-to-br ${gradient} flex items-center justify-center relative overflow-hidden`}
       >
+        {/* Render Vendor Avatar as a blended background if available */}
+        {stall.image && (
+          <img 
+            src={stall.image} 
+            alt="Stall Background" 
+            className="absolute inset-0 w-full h-full object-cover opacity-50 mix-blend-overlay"
+          />
+        )}
         <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_70%_30%,white,transparent)]" />
-        <div className="w-14 h-14 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center border border-white/30">
-          <span className="text-2xl font-black text-white">
-            {stall.stallName.charAt(0).toUpperCase()}
-          </span>
+        
+        {/* Central Avatar Icon */}
+        <div className="w-14 h-14 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center border border-white/30 overflow-hidden z-10 shadow-lg">
+          {stall.image ? (
+             <img src={stall.image} alt={stall.stallName} className="w-full h-full object-cover" />
+          ) : (
+             <span className="text-2xl font-black text-white">{stall.stallName.charAt(0).toUpperCase()}</span>
+          )}
         </div>
 
         {/* New / Updated badge */}
         <span
-          className={`absolute top-3 right-3 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold ${
-            stall.status === 'new'
-              ? 'bg-blue-600/90 text-white'
-              : 'bg-amber-500/90 text-white'
+          className={`absolute top-3 right-3 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold z-10 ${
+            stall.status === 'new' ? 'bg-blue-600/90 text-white' : 'bg-amber-500/90 text-white'
           }`}
         >
           {stall.status === 'new' ? (
@@ -119,43 +120,17 @@ const StallCard: React.FC<{ stall: Stall; index: number }> = ({ stall, index }) 
 };
 
 // ─── Stall Detail  (route: /stall/:id) ───────────────────────────────────────
-// ─── Detective Stall Detail  (route: /stall/:id) ─────────────────────────
 export const StallDetail: React.FC = () => {
   const { stalls } = useApp();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   
-  // Try to find the stall using both 'id' and '_id' just in case
   const stall = stalls.find((s) => String(s.id) === String(id) || String((s as any)._id) === String(id));
 
   if (!stall) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Stall not found 😢</h2>
-        
-        {/* 🚨 DEBUGGING BOX 🚨 */}
-        <div className="w-full max-w-lg bg-gray-900 p-6 rounded-xl shadow-lg font-mono text-sm text-left mb-6 overflow-x-auto border border-red-500">
-          <p className="text-yellow-400 font-bold mb-2">--- DEBUG INFO ---</p>
-          <p className="text-white">1. URL ID we are looking for: <span className="text-cyan-400">"{id}"</span></p>
-          <p className="text-white">2. Total stalls in state: <span className="text-cyan-400">{stalls?.length || 0}</span></p>
-          
-          <div className="mt-4">
-            <p className="text-gray-400 mb-1">Available Stalls in Memory:</p>
-            {stalls?.length === 0 ? (
-              <p className="text-red-400">STATE IS EMPTY! (Context lost on navigation?)</p>
-            ) : (
-              stalls.map((s, i) => (
-                <div key={i} className="pl-4 border-l-2 border-gray-700 mb-2">
-                  <p className="text-green-400">Name: {s.stallName}</p>
-                  <p className="text-blue-400">id: {s.id || 'UNDEFINED'}</p>
-                  {/* @ts-ignore */}
-                  <p className="text-purple-400">_id: {s._id || 'UNDEFINED'}</p>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-
         <button
           onClick={() => navigate('/')}
           className="mt-4 px-6 py-2 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 transition-colors"
@@ -165,8 +140,6 @@ export const StallDetail: React.FC = () => {
       </div>
     );
   }
-
-  
 
   const items = validItems(stall);
   const idx = stalls.indexOf(stall);
@@ -186,34 +159,40 @@ export const StallDetail: React.FC = () => {
           <span className="text-sm font-medium">Back to stalls</span>
         </motion.button>
 
-        {/* Banner */}
+        {/* Banner with dynamically injected Avatar & Background */}
         <motion.div
           initial={{ opacity: 0, y: -16 }}
           animate={{ opacity: 1, y: 0 }}
           className={`h-40 rounded-2xl bg-gradient-to-br ${gradient} flex items-center justify-center relative overflow-hidden mb-6`}
         >
+          {stall.image && (
+            <img 
+              src={stall.image} 
+              alt="Stall Background" 
+              className="absolute inset-0 w-full h-full object-cover opacity-50 mix-blend-overlay"
+            />
+          )}
           <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_70%_30%,white,transparent)]" />
+          
           <div className="text-center text-white relative z-10">
-            <div className="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center border border-white/30 mx-auto mb-2">
-              <span className="text-3xl font-black">
-                {stall.stallName.charAt(0).toUpperCase()}
-              </span>
+            <div className="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center border border-white/30 mx-auto mb-2 overflow-hidden shadow-lg">
+              {stall.image ? (
+                <img src={stall.image} alt={stall.stallName} className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-3xl font-black">{stall.stallName.charAt(0).toUpperCase()}</span>
+              )}
             </div>
-            <h1 className="text-2xl font-bold">{stall.stallName}</h1>
-            <p className="text-white/80 text-sm">
+            <h1 className="text-2xl font-bold drop-shadow-md">{stall.stallName}</h1>
+            <p className="text-white/90 text-sm font-medium drop-shadow-sm">
               Updated{' '}
               {new Date(stall.updatedAt).toLocaleDateString('en-IN', {
-                day: 'numeric',
-                month: 'short',
-                year: 'numeric',
+                day: 'numeric', month: 'short', year: 'numeric',
               })}
             </p>
           </div>
-          <span
-            className={`absolute top-4 right-4 inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold ${
-              stall.status === 'new'
-                ? 'bg-blue-600/90 text-white'
-                : 'bg-amber-500/90 text-white'
+          
+          <span className={`absolute top-4 right-4 inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold z-10 ${
+              stall.status === 'new' ? 'bg-blue-600/90 text-white' : 'bg-amber-500/90 text-white'
             }`}
           >
             {stall.status === 'new' ? '✨ New' : '🔄 Updated'}
@@ -266,7 +245,6 @@ export const StallDetail: React.FC = () => {
 
 // ─── Customer Home  (route: "/") ──────────────────────────────────────────────
 export const CustomerHome: React.FC = () => {
-  // ✅ reads from AppContext — the same array vendors write to via createStall/updateStall
   const { stalls, orders } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
 
