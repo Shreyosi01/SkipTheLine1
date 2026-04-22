@@ -1,11 +1,6 @@
-import sys
-import os
-
-# Add the backend directory to the Python path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.openapi.utils import get_openapi
 from database import Base, engine
 import models
 from routers import auth, menu, orders, queue, stalls
@@ -13,12 +8,15 @@ from routers import auth, menu, orders, queue, stalls
 # Create all DB tables
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="SkipTheLine")
+app = FastAPI(
+    title="SkipTheLine",
+    swagger_ui_parameters={"persistAuthorization": True},
+)
 
 # ⚠️ CORS — allows your React frontend to talk to this API
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "https://skipthelinefrontend.netlify.app"],  # your Vite dev server
+    allow_origins=["http://localhost:5173", "https://skipthelinefrontend.netlify.app"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -29,6 +27,30 @@ app.include_router(stalls.router)
 app.include_router(menu.router)
 app.include_router(orders.router)
 app.include_router(queue.router)
+
+# ── Custom OpenAPI schema — adds simple Bearer token input to Swagger ──
+def custom_openapi():
+    if app.openapi_schema:
+        return app.openapi_schema
+    schema = get_openapi(
+        title=app.title,
+        version="1.0.0",
+        routes=app.routes,
+    )
+    schema["components"]["securitySchemes"] = {
+        "BearerAuth": {
+            "type": "http",
+            "scheme": "bearer",
+            "bearerFormat": "JWT",
+        }
+    }
+    for path in schema["paths"].values():
+        for method in path.values():
+            method["security"] = [{"BearerAuth": []}]
+    app.openapi_schema = schema
+    return schema
+
+app.openapi = custom_openapi
 
 @app.get("/")
 def root():
