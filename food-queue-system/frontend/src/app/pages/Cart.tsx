@@ -60,12 +60,18 @@ export const Cart: React.FC = () => {
 
   const updateQuantity = (itemId: string, change: number) => {
     const item = cart.find((i) => i.id === itemId);
-    if (item) {
-      if (change < 0 && item.quantity === 1) {
-        removeFromCart(itemId);
-      } else {
-        addToCart({ ...item, quantity: change });
-      }
+    if (!item) return;
+
+    const newQty = item.quantity + change;
+
+    if (newQty <= 0) {
+      // Remove item entirely when quantity hits 0
+      removeFromCart(itemId);
+    } else {
+      // Remove and re-add with the exact new quantity
+      // This avoids the addToCart accumulation logic entirely
+      removeFromCart(itemId);
+      addToCart({ ...item, quantity: newQty });
     }
   };
 
