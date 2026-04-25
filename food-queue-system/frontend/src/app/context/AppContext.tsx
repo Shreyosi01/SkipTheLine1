@@ -76,7 +76,7 @@ interface AppContextType {
   clearCart: () => void;
   addOrder: (order: Order) => void;
   updateOrderStatus: (id: string, status: OrderStatus) => void;
-  loginUser: (email: string, password: string) => Promise<void>;
+  loginUser: (email: string, password: string) => Promise<User>;
   registerUser: (
     name: string,
     email: string,
@@ -89,7 +89,7 @@ interface AppContextType {
   deleteUser: () => Promise<void>;
   fetchMyOrders: () => Promise<void>;
   fetchVendorOrders: () => Promise<void>;
-  fetchStalls: () => Promise<void>;
+  fetchStalls: () => Promise<Stall[]>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -130,7 +130,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const parsed = JSON.parse(savedUser);
         setUserState(parsed);
         setUserMode(parsed.mode);
-        // Fetch the right orders based on role
         if (parsed.mode === 'vendor') {
           api.vendorOrders()
             .then(res => { if (Array.isArray(res)) mapAndSetOrders(res); })
@@ -146,10 +145,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, []);
 
-  const fetchStalls = async () => {
+  // ✅ Returns the fresh stalls list so loginUser can use it immediately
+  const fetchStalls = async (): Promise<Stall[]> => {
     try {
       const res = await api.listStalls();
-      if (!Array.isArray(res)) return;
+      if (!Array.isArray(res)) return [];
       const stallsWithMenus = await Promise.all(
         res.map(async (s: any) => {
           try {
@@ -161,8 +161,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         })
       );
       setStalls(stallsWithMenus);
+      return stallsWithMenus;
     } catch (e) {
       console.error('Failed to fetch stalls', e);
+      return [];
     }
   };
 
@@ -204,28 +206,46 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setOrders(mapped);
   };
 
-  const loginUser = async (email: string, password: string) => {
+  const loginUser = async (email: string, password: string): Promise<User> => {
     setIsLoading(true);
     try {
       const res = await api.login({ email, password });
       localStorage.setItem('token', res.access_token);
-      const u: User = {
+
+      let u: User = {
         id: String(res.user.id),
         name: res.user.name,
         email: res.user.email,
         mode: res.user.role as UserMode,
-        stallId: res.user.stall_id ? String(res.user.stall_id) : undefined,
+        // Primary source: stall_id from login response (fixed in routers/auth.py)
+        stallId: res.user.stall_id != null ? String(res.user.stall_id) : undefined,
         phone: res.user.phone,
         avatar: res.user.avatar,
       };
+
       setUser(u);
       setUserMode(u.mode);
-      // Fetch the right orders based on role immediately after login
+
       if (u.mode === 'vendor') {
-        await Promise.all([fetchVendorOrders(), fetchStalls()]);
+        // Fetch stalls and orders concurrently; fetchStalls returns the list directly
+        const [freshStalls] = await Promise.all([
+          fetchStalls(),
+          fetchVendorOrders(),
+        ]);
+
+        // ✅ Fallback: if backend still didn't send stall_id, resolve from stalls list
+        if (!u.stallId) {
+          const vendorStall = freshStalls.find(s => s.vendorId === u.id);
+          if (vendorStall) {
+            u = { ...u, stallId: vendorStall.id };
+            setUser(u); // persist resolved stallId to localStorage too
+          }
+        }
       } else {
         await Promise.all([fetchMyOrders(), fetchStalls()]);
       }
+
+      return u;
     } finally {
       setIsLoading(false);
     }
@@ -243,7 +263,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         name: res.user.name,
         email: res.user.email,
         mode: res.user.role as UserMode,
-        stallId: res.user.stall_id ? String(res.user.stall_id) : undefined,
+        stallId: res.user.stall_id != null ? String(res.user.stall_id) : undefined,
         phone: res.user.phone || phone,
       };
       setUser(u);
@@ -274,7 +294,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  // For customers — fetches their own orders
   const fetchMyOrders = async () => {
     try {
       const res = await api.myOrders();
@@ -284,7 +303,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  // For vendors — fetches all orders for their stall
   const fetchVendorOrders = async () => {
     try {
       const res = await api.vendorOrders();

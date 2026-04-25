@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Mail, Lock, User, Sparkles, Sun, Moon, Phone, Eye, EyeOff } from 'lucide-react';
 import { useApp, UserMode } from '../context/AppContext';
 import { useNavigate } from 'react-router';
-import { ModeToggle } from '../components/ModeToggle';
 import { useTheme } from 'next-themes';
 import { toast } from 'sonner';
 
@@ -15,7 +14,7 @@ export const Auth: React.FC = () => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [selectedMode, setSelectedMode] = useState<UserMode>('customer');
-  
+
   const { loginUser, registerUser, isLoading } = useApp();
   const { theme, setTheme } = useTheme();
   const navigate = useNavigate();
@@ -25,60 +24,60 @@ export const Auth: React.FC = () => {
     setMounted(true);
   }, []);
 
-  // Email Validation Logic
-  const isValidEmail = (emailStr: string) => {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailStr);
-  };
+  const isValidEmail = (emailStr: string) =>
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailStr);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // 1. Email Validation Check - Trigger Alert
     if (!isValidEmail(email)) {
-      toast.error("Invalid email address/password!! Please check and try again.");
+      toast.error('Invalid email address. Please check and try again.');
       return;
     }
 
     try {
       if (isLogin) {
-        await loginUser(email, password);
+        // ✅ FIX: loginUser now returns the User object directly.
+        //    No more localStorage re-read race condition.
+        const loggedInUser = await loginUser(email, password);
         toast.success('Welcome back!');
+
+        if (loggedInUser.mode === 'vendor') {
+          // ✅ stallId comes straight from the API response via loginUser —
+          //    if the backend returns stall_id, we go to /vendor (dashboard),
+          //    otherwise the vendor needs to create their stall first.
+          navigate(loggedInUser.stallId ? '/vendor' : '/vendor/stall');
+        } else {
+          navigate('/');
+        }
       } else {
-        // 2. Phone Number Validation Check (Must be exactly 10 digits)
         if (phone.length !== 10) {
-          toast.error("Phone number must be exactly 10 digits.");
+          toast.error('Phone number must be exactly 10 digits.');
           return;
         }
-
         const fullPhone = `+91${phone}`;
-        await registerUser(
-          name, 
-          email, 
-          password, 
-          selectedMode,
-          selectedMode === 'vendor' ? 1 : undefined,
-          fullPhone
-        );
+        await registerUser(name, email, password, selectedMode, undefined, fullPhone);
         toast.success('Account created successfully!');
+        // New vendor always needs to create their stall first
+        navigate(selectedMode === 'vendor' ? '/vendor/stall' : '/');
       }
-      navigate(selectedMode === 'vendor' ? '/vendor/stall' : '/');
     } catch (err: any) {
       toast.error(err.message || 'Something went wrong');
     }
   };
 
-  // UPDATED COLOR LOGIC: Customer = Blue | Vendor = Green
-  const activeColorClass = selectedMode === 'customer' 
-    ? 'focus:border-blue-500 dark:focus:border-cyan-500 focus:ring-blue-500/20 dark:focus:ring-cyan-500/20' 
-    : 'focus:border-green-500 dark:focus:border-emerald-500 focus:ring-green-500/20 dark:focus:ring-emerald-500/20';
+  const activeColorClass =
+    selectedMode === 'customer'
+      ? 'focus:border-blue-500 dark:focus:border-cyan-500 focus:ring-blue-500/20 dark:focus:ring-cyan-500/20'
+      : 'focus:border-green-500 dark:focus:border-emerald-500 focus:ring-green-500/20 dark:focus:ring-emerald-500/20';
 
-  const gradientClass = selectedMode === 'customer'
-    ? 'from-blue-600 via-cyan-600 to-indigo-700'
-    : 'from-green-600 via-emerald-600 to-teal-700';
+  const gradientClass =
+    selectedMode === 'customer'
+      ? 'from-blue-600 via-cyan-600 to-indigo-700'
+      : 'from-green-600 via-emerald-600 to-teal-700';
 
-  const btnGradientClass = selectedMode === 'customer'
-    ? 'from-blue-500 to-cyan-500'
-    : 'from-green-500 to-emerald-500';
+  const btnGradientClass =
+    selectedMode === 'customer' ? 'from-blue-500 to-cyan-500' : 'from-green-500 to-emerald-500';
 
   return (
     <div className="min-h-screen flex bg-white dark:bg-gray-900 transition-colors duration-200">
@@ -95,7 +94,7 @@ export const Auth: React.FC = () => {
         </motion.button>
       )}
 
-      {/* Left Sidebar Section */}
+      {/* Left Sidebar */}
       <motion.div
         initial={{ x: -100, opacity: 0 }}
         animate={{ x: 0, opacity: 1 }}
@@ -103,7 +102,6 @@ export const Auth: React.FC = () => {
         className={`hidden lg:flex lg:w-1/2 bg-gradient-to-br ${gradientClass} relative overflow-hidden`}
       >
         <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1763619814380-1637cdf5f796?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwZW9wbGUlMjB3YWl0aW5nJTIwcXVldWUlMjBsaW5lfGVufDF8fHx8MTc3NTMyNzk0NHww&ixlib=rb-4.1.0&q=80&w=1080')] bg-cover bg-center opacity-20" />
-        
         <div className="relative z-10 flex flex-col items-center justify-center w-full p-12 text-white">
           <motion.div
             animate={{ y: [0, -20, 0] }}
@@ -114,7 +112,6 @@ export const Auth: React.FC = () => {
               <Sparkles className="w-16 h-16" />
             </div>
           </motion.div>
-          
           <motion.h1
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -125,7 +122,6 @@ export const Auth: React.FC = () => {
             <br />
             Savor the Time
           </motion.h1>
-          
           <motion.p
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -137,7 +133,7 @@ export const Auth: React.FC = () => {
         </div>
       </motion.div>
 
-      {/* Right Form Section */}
+      {/* Right Form */}
       <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-white dark:bg-gray-900 transition-colors duration-200">
         <motion.div
           initial={{ x: 100, opacity: 0 }}
@@ -186,24 +182,18 @@ export const Auth: React.FC = () => {
               <div className="relative bg-gray-100 dark:bg-gray-800 p-1 rounded-full flex items-center w-64 h-12">
                 <motion.div
                   className={`absolute h-10 w-[124px] rounded-full bg-gradient-to-r shadow-md ${btnGradientClass}`}
-                  animate={{
-                    x: selectedMode === 'customer' ? 0 : 128
-                  }}
+                  animate={{ x: selectedMode === 'customer' ? 0 : 128 }}
                   transition={{ type: 'spring', stiffness: 300, damping: 30 }}
                 />
                 <button
                   onClick={() => setSelectedMode('customer')}
-                  className={`relative z-10 flex-1 text-sm font-bold transition-colors ${
-                    selectedMode === 'customer' ? 'text-white' : 'text-gray-500'
-                  }`}
+                  className={`relative z-10 flex-1 text-sm font-bold transition-colors ${selectedMode === 'customer' ? 'text-white' : 'text-gray-500'}`}
                 >
                   Customer
                 </button>
                 <button
                   onClick={() => setSelectedMode('vendor')}
-                  className={`relative z-10 flex-1 text-sm font-bold transition-colors ${
-                    selectedMode === 'vendor' ? 'text-white' : 'text-gray-500'
-                  }`}
+                  className={`relative z-10 flex-1 text-sm font-bold transition-colors ${selectedMode === 'vendor' ? 'text-white' : 'text-gray-500'}`}
                 >
                   Vendor
                 </button>
@@ -231,7 +221,6 @@ export const Auth: React.FC = () => {
                       className={`w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-purple-500/30 rounded-lg text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 transition-all ${activeColorClass}`}
                     />
                   </div>
-
                   <div className="relative">
                     <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                     <span className="absolute left-11 top-1/2 -translate-y-1/2 text-gray-500 font-medium">+91</span>
@@ -282,9 +271,12 @@ export const Auth: React.FC = () => {
             <motion.button
               type="submit"
               disabled={isLoading}
-              whileHover={{ 
-                scale: 1.02, 
-                boxShadow: selectedMode === 'customer' ? '0 0 30px rgba(59, 130, 246, 0.5)' : '0 0 30px rgba(34, 197, 94, 0.5)' 
+              whileHover={{
+                scale: 1.02,
+                boxShadow:
+                  selectedMode === 'customer'
+                    ? '0 0 30px rgba(59, 130, 246, 0.5)'
+                    : '0 0 30px rgba(34, 197, 94, 0.5)',
               }}
               whileTap={{ scale: 0.98 }}
               className={`w-full py-4 text-white font-bold rounded-lg shadow-lg transition-all disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r ${btnGradientClass}`}
