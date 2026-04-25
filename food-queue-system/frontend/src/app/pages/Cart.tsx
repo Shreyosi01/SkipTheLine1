@@ -36,7 +36,12 @@ export const Cart: React.FC = () => {
         id: String(res.id),
         stallId: String(res.stall_id),
         stallName,
-        items: cart,
+        items: cart.map((item) => ({
+          id: item.id,
+          name: item.name,
+          price: item.price,
+          quantity: item.quantity,
+        })),
         total: res.total_price,
         token: res.token,
         status: res.status as any,
@@ -46,6 +51,7 @@ export const Cart: React.FC = () => {
 
       addOrder(order);
       clearCart();
+      // ✅ Navigate to dedicated confirmation route, not order/:id
       navigate('/order/confirmation', { state: { order } });
     } catch (err: any) {
       toast.error(err.message || 'Failed to place order');
