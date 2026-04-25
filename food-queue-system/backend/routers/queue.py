@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from database import get_db
 from auth import get_current_user
@@ -26,12 +26,18 @@ def get_queue(stall_id: int, db: Session = Depends(get_db)):
 @router.get("/position/{order_id}")
 def get_queue_position(order_id: int, db: Session = Depends(get_db),
                        current_user=Depends(get_current_user)):
+    # ✅ FIX #3: Check order exists before accessing its attributes.
+    # Without this, order.stall_id on a None object raises AttributeError → unhandled 500.
     order = db.query(models.Order).filter(models.Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
     ahead = db.query(models.Order).filter(
         models.Order.stall_id == order.stall_id,
         models.Order.queue_number < order.queue_number,
         models.Order.status != "completed"
     ).count()
+
     return {
         "queue_position": ahead + 1,
         "orders_ahead": ahead,

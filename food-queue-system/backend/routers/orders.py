@@ -23,14 +23,26 @@ def place_order(data: schemas.OrderCreate, db: Session = Depends(get_db),
                 current_user=Depends(get_current_user)):
     if current_user.role != "customer":
         raise HTTPException(status_code=403, detail="Only customers can place orders")
-    
-    # Calculate total
+
     total = 0
+    order_items_data = []
+
     for item in data.items:
-        menu_item = db.query(models.MenuItem).filter(models.MenuItem.id == item.menu_item_id).first()
+        menu_item = db.query(models.MenuItem).filter(
+            models.MenuItem.id == item.menu_item_id
+        ).first()
         if not menu_item:
             raise HTTPException(status_code=404, detail=f"Menu item {item.menu_item_id} not found")
+
+        # ✅ FIX #5: Reject orders containing unavailable items
+        if not menu_item.is_available:
+            raise HTTPException(
+                status_code=400,
+                detail=f"'{menu_item.name}' is currently unavailable"
+            )
+
         total += menu_item.price * item.quantity
+        order_items_data.append((item, menu_item))
 
     order = models.Order(
         token=generate_token(),
@@ -44,24 +56,38 @@ def place_order(data: schemas.OrderCreate, db: Session = Depends(get_db),
     db.commit()
     db.refresh(order)
 
-    for item in data.items:
-        menu_item = db.query(models.MenuItem).filter(
-            models.MenuItem.id == item.menu_item_id).first()
+    for item, menu_item in order_items_data:
         db.add(models.OrderItem(
             order_id=order.id,
             menu_item_id=item.menu_item_id,
             quantity=item.quantity,
-            price=menu_item.price,          # store price snapshot
-            menu_item_name=menu_item.name   # store name snapshot
+            price=menu_item.price,
+            menu_item_name=menu_item.name
         ))
     db.commit()
     db.refresh(order)
     return order
 
+# ✅ FIX #2: /my MUST come before /{order_id}
+# FastAPI matches top-down — if /{order_id} (int) came first,
+# "my" would fail int conversion → 422 instead of routing here.
 @router.get("/my", response_model=List[schemas.OrderResponse])
 def my_orders(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     return db.query(models.Order).filter(
         models.Order.customer_id == current_user.id
+    ).order_by(models.Order.created_at.desc()).all()
+
+@router.get("", response_model=List[schemas.OrderResponse])
+def vendor_orders(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if current_user.role != "vendor":
+        raise HTTPException(status_code=403, detail="Vendors only")
+
+    stall = db.query(models.Stall).filter(models.Stall.owner_id == current_user.id).first()
+    if not stall:
+        raise HTTPException(status_code=404, detail="Vendor must create a stall first")
+
+    return db.query(models.Order).filter(
+        models.Order.stall_id == stall.id
     ).order_by(models.Order.created_at.desc()).all()
 
 @router.get("/{order_id}", response_model=schemas.OrderResponse)
@@ -72,28 +98,21 @@ def get_order(order_id: int, db: Session = Depends(get_db),
         raise HTTPException(status_code=404, detail="Order not found")
     return order
 
-@router.get("", response_model=List[schemas.OrderResponse])
-def vendor_orders(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
-    if current_user.role != "vendor":
-        raise HTTPException(status_code=403, detail="Vendors only")
-    
-    # Get vendor's stall
-    stall = db.query(models.Stall).filter(models.Stall.owner_id == current_user.id).first()
-    if not stall:
-        raise HTTPException(status_code=403, detail="Vendor must create a stall first")
-    
-    return db.query(models.Order).filter(
-        models.Order.stall_id == stall.id
-    ).order_by(models.Order.created_at.desc()).all()
-
 @router.patch("/{order_id}/status")
 def update_status(order_id: int, data: schemas.OrderStatusUpdate,
                   db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     if current_user.role != "vendor":
         raise HTTPException(status_code=403, detail="Vendors only")
+
     order = db.query(models.Order).filter(models.Order.id == order_id).first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
+
+    # ✅ BONUS: Verify the order belongs to this vendor's stall
+    stall = db.query(models.Stall).filter(models.Stall.owner_id == current_user.id).first()
+    if not stall or order.stall_id != stall.id:
+        raise HTTPException(status_code=403, detail="This order does not belong to your stall")
+
     order.status = data.status
     db.commit()
     return {"message": "Status updated", "status": order.status}

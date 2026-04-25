@@ -14,7 +14,6 @@ def create_stall(data: schemas.StallCreate, db: Session = Depends(get_db),
     if current_user.role != "vendor":
         raise HTTPException(status_code=403, detail="Only vendors can create stalls")
     
-    # Check if vendor already has a stall
     existing_stall = db.query(models.Stall).filter(models.Stall.owner_id == current_user.id).first()
     if existing_stall:
         raise HTTPException(status_code=400, detail="Vendor can only have one stall")
@@ -30,8 +29,11 @@ def create_stall(data: schemas.StallCreate, db: Session = Depends(get_db),
     db.refresh(stall)
     return stall
 
+# ✅ FIX #1: /vendor/me MUST come before /{stall_id}
+# FastAPI matches routes top-down. If /{stall_id} came first,
+# "vendor" would be treated as an integer stall ID → 422 error.
 @router.get("/vendor/me", response_model=schemas.StallResponse)
-def get_my_stall(db: Session = Depends(get_db), 
+def get_my_stall(db: Session = Depends(get_db),
                  current_user=Depends(get_current_user)):
     """Get the current vendor's stall"""
     if current_user.role != "vendor":
@@ -42,6 +44,11 @@ def get_my_stall(db: Session = Depends(get_db),
         raise HTTPException(status_code=404, detail="Stall not found")
     return stall
 
+@router.get("", response_model=List[schemas.StallResponse])
+def list_all_stalls(db: Session = Depends(get_db)):
+    """List all stalls"""
+    return db.query(models.Stall).all()
+
 @router.get("/{stall_id}", response_model=schemas.StallResponse)
 def get_stall(stall_id: int, db: Session = Depends(get_db)):
     """Get stall details by ID"""
@@ -50,14 +57,9 @@ def get_stall(stall_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Stall not found")
     return stall
 
-@router.get("", response_model=List[schemas.StallResponse])
-def list_all_stalls(db: Session = Depends(get_db)):
-    """List all stalls"""
-    return db.query(models.Stall).all()
-
 @router.put("/{stall_id}", response_model=schemas.StallResponse)
 def update_stall(stall_id: int, data: schemas.StallCreate,
-                 db: Session = Depends(get_db), 
+                 db: Session = Depends(get_db),
                  current_user=Depends(get_current_user)):
     """Update stall (vendor can only update their own)"""
     stall = db.query(models.Stall).filter(models.Stall.id == stall_id).first()
