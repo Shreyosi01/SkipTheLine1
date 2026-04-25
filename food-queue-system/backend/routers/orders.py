@@ -8,6 +8,14 @@ import models, schemas
 
 router = APIRouter(prefix="/orders", tags=["Orders"])
 
+# Mirrors the getNextStatus logic in VendorOrders.tsx exactly.
+# A vendor can only move an order forward — never backward or skip a step.
+STATUS_FLOW = {
+    "placed": "preparing",
+    "preparing": "ready",
+    "ready": "completed",
+}
+
 def generate_token():
     return f"#{random.randint(1000, 9999)}"
 
@@ -17,6 +25,7 @@ def get_queue_number(db: Session, stall_id: int) -> int:
         models.Order.status != "completed"
     ).count()
     return count + 1
+
 
 @router.post("", response_model=schemas.OrderResponse)
 def place_order(data: schemas.OrderCreate, db: Session = Depends(get_db),
@@ -33,14 +42,11 @@ def place_order(data: schemas.OrderCreate, db: Session = Depends(get_db),
         ).first()
         if not menu_item:
             raise HTTPException(status_code=404, detail=f"Menu item {item.menu_item_id} not found")
-
-        # ✅ FIX #5: Reject orders containing unavailable items
         if not menu_item.is_available:
             raise HTTPException(
                 status_code=400,
                 detail=f"'{menu_item.name}' is currently unavailable"
             )
-
         total += menu_item.price * item.quantity
         order_items_data.append((item, menu_item))
 
@@ -68,14 +74,14 @@ def place_order(data: schemas.OrderCreate, db: Session = Depends(get_db),
     db.refresh(order)
     return order
 
-# ✅ FIX #2: /my MUST come before /{order_id}
-# FastAPI matches top-down — if /{order_id} (int) came first,
-# "my" would fail int conversion → 422 instead of routing here.
+
+# ✅ /my MUST stay above /{order_id} — FastAPI matches top-down
 @router.get("/my", response_model=List[schemas.OrderResponse])
 def my_orders(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     return db.query(models.Order).filter(
         models.Order.customer_id == current_user.id
     ).order_by(models.Order.created_at.desc()).all()
+
 
 @router.get("", response_model=List[schemas.OrderResponse])
 def vendor_orders(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
@@ -90,6 +96,7 @@ def vendor_orders(db: Session = Depends(get_db), current_user=Depends(get_curren
         models.Order.stall_id == stall.id
     ).order_by(models.Order.created_at.desc()).all()
 
+
 @router.get("/{order_id}", response_model=schemas.OrderResponse)
 def get_order(order_id: int, db: Session = Depends(get_db),
               current_user=Depends(get_current_user)):
@@ -97,6 +104,7 @@ def get_order(order_id: int, db: Session = Depends(get_db),
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
     return order
+
 
 @router.patch("/{order_id}/status")
 def update_status(order_id: int, data: schemas.OrderStatusUpdate,
@@ -108,10 +116,26 @@ def update_status(order_id: int, data: schemas.OrderStatusUpdate,
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
 
-    # ✅ BONUS: Verify the order belongs to this vendor's stall
+    # ✅ Vendor ownership check — vendor can only update orders for their own stall
     stall = db.query(models.Stall).filter(models.Stall.owner_id == current_user.id).first()
     if not stall or order.stall_id != stall.id:
         raise HTTPException(status_code=403, detail="This order does not belong to your stall")
+
+    # ✅ Forward-only transition enforcement.
+    # STATUS_FLOW maps each status to the only valid next status.
+    # This mirrors getNextStatus() in VendorOrders.tsx exactly so the backend
+    # and frontend always agree on what transitions are legal.
+    expected_next = STATUS_FLOW.get(order.status)
+    if expected_next is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Order is already completed and cannot be updated further"
+        )
+    if data.status != expected_next:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid transition: '{order.status}' → '{data.status}'. Expected next status: '{expected_next}'"
+        )
 
     order.status = data.status
     db.commit()
