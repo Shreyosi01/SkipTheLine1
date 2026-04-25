@@ -3,12 +3,11 @@ import { motion, AnimatePresence } from 'motion/react';
 import { ShoppingCart, Trash2, Plus, Minus, ArrowRight } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { useNavigate } from 'react-router';
-import { mockStalls, generateToken } from '../data/mockdata';
 import { toast } from 'sonner';
 import { api } from '../../api/client';
 
 export const Cart: React.FC = () => {
-  const { cart, removeFromCart, addToCart, clearCart, addOrder } = useApp();
+  const { cart, removeFromCart, addToCart, clearCart, addOrder, stalls } = useApp();
   const navigate = useNavigate();
 
   const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
@@ -30,15 +29,13 @@ export const Cart: React.FC = () => {
       };
 
       const res = await api.placeOrder(orderPayload);
-      if (res.detail) {
-        toast.error(res.detail);
-        return;
-      }
+
+      const stallName = stalls.find((s) => s.id === cart[0].stallId)?.stallName || 'Stall';
 
       const order = {
         id: String(res.id),
         stallId: String(res.stall_id),
-        stallName: mockStalls.find((s) => s.id === cart[0].stallId)?.name || 'Stall',
+        stallName,
         items: cart,
         total: res.total_price,
         token: res.token,
@@ -49,8 +46,7 @@ export const Cart: React.FC = () => {
 
       addOrder(order);
       clearCart();
-      toast.success(`Order placed! Token: ${res.token}`);
-      navigate(`/order/${res.id}`);
+      navigate('/order/confirmation', { state: { order } });
     } catch (err: any) {
       toast.error(err.message || 'Failed to place order');
     }
@@ -116,7 +112,7 @@ export const Cart: React.FC = () => {
                     <div className="flex-1">
                       <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-1">{item.name}</h3>
                       <p className="text-gray-600 dark:text-gray-400 text-sm">
-                        {mockStalls.find((s) => s.id === item.stallId)?.name}
+                        {stalls.find((s) => s.id === item.stallId)?.stallName}
                       </p>
                     </div>
 
@@ -193,7 +189,7 @@ export const Cart: React.FC = () => {
               </div>
 
               <motion.button
-                whileHover={{ scale: 1.02, boxShadow: '0 0 30px rgba(249, 115, 22, 0.5)' }}
+                whileHover={{ scale: 1.02, boxShadow: '0 0 30px rgba(59, 130, 246, 0.5)' }}
                 whileTap={{ scale: 0.98 }}
                 onClick={handleCheckout}
                 className="w-full py-4 bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-bold rounded-lg shadow-lg flex items-center justify-center gap-2"
