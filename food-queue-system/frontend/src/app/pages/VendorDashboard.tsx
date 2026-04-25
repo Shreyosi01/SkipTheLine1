@@ -1,15 +1,21 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Users, Clock, Package, DollarSign, Store, Plus, Edit3, Sparkles } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Link, useNavigate } from 'react-router';
 
 export const VendorDashboard: React.FC = () => {
-  const { orders, user, getVendorStall } = useApp();
+  const { orders, user, getVendorStall, fetchVendorOrders } = useApp();
   const navigate = useNavigate();
 
+  // Refresh vendor orders every time the dashboard is visited
+  useEffect(() => {
+    fetchVendorOrders();
+  }, []);
+
   const vendorStall = getVendorStall();
-  const vendorOrders = orders.filter((o) => o.stallId === user?.stallId);
+  const stallId = vendorStall?.id ?? user?.stallId;
+  const vendorOrders = orders.filter((o) => o.stallId === stallId);
 
   const totalOrders = vendorOrders.length;
   const activeQueue = vendorOrders.filter((o) => o.status !== 'completed').length;
@@ -19,12 +25,7 @@ export const VendorDashboard: React.FC = () => {
   const stats = [
     { icon: Package, label: 'Total Orders', value: totalOrders, color: 'from-blue-500 to-cyan-500' },
     { icon: Users, label: 'Active Queue', value: activeQueue, color: 'from-purple-500 to-pink-500' },
-    {
-      icon: DollarSign,
-      label: 'Total Revenue',
-      value: `₹${totalRevenue.toFixed(2)}`,
-      color: 'from-green-500 to-emerald-500',
-    },
+    { icon: DollarSign, label: 'Total Revenue', value: `₹${totalRevenue.toFixed(2)}`, color: 'from-green-500 to-emerald-500' },
     { icon: Clock, label: 'Avg Wait Time', value: `${avgWaitTime} min`, color: 'from-green-500 to-emerald-500' },
   ];
 
@@ -37,7 +38,7 @@ export const VendorDashboard: React.FC = () => {
           <p className="text-gray-600 dark:text-gray-400">Manage your orders and track performance</p>
         </motion.div>
 
-        {/* ── Stall Status Banner ── */}
+        {/* Stall Status Banner */}
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
@@ -47,7 +48,6 @@ export const VendorDashboard: React.FC = () => {
           {vendorStall ? (
             <div className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-2xl border border-green-200 dark:border-green-700/40 p-6">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                {/* Left: stall info */}
                 <div className="flex items-center gap-4">
                   <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center shadow-lg shadow-green-500/25 flex-shrink-0">
                     <Store className="w-7 h-7 text-white" />
@@ -55,20 +55,14 @@ export const VendorDashboard: React.FC = () => {
                   <div>
                     <div className="flex items-center gap-2 mb-0.5">
                       <h2 className="text-xl font-bold text-gray-900 dark:text-white">{vendorStall.stallName}</h2>
-                      <span
-                        className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                          vendorStall.status === 'new'
-                            ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300'
-                            : vendorStall.status === 'updated'
-                            ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300'
-                            : 'bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300'
-                        }`}
-                      >
-                        {vendorStall.status === 'new'
-                          ? '🆕 New'
+                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                        vendorStall.status === 'new'
+                          ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300'
                           : vendorStall.status === 'updated'
-                          ? '🔄 Updated'
-                          : '✅ Active'}
+                          ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300'
+                          : 'bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300'
+                      }`}>
+                        {vendorStall.status === 'new' ? '🆕 New' : vendorStall.status === 'updated' ? '🔄 Updated' : '✅ Active'}
                       </span>
                     </div>
                     <p className="text-gray-600 dark:text-gray-400 text-sm">
@@ -77,8 +71,6 @@ export const VendorDashboard: React.FC = () => {
                     </p>
                   </div>
                 </div>
-
-                {/* Right: edit button */}
                 <motion.button
                   whileHover={{ scale: 1.03, boxShadow: '0 0 20px rgba(34,197,94,0.35)' }}
                   whileTap={{ scale: 0.97 }}
@@ -89,14 +81,9 @@ export const VendorDashboard: React.FC = () => {
                   Edit Stall
                 </motion.button>
               </div>
-
-              {/* Items preview */}
               <div className="mt-5 flex flex-wrap gap-2">
                 {vendorStall.items.map((item) => (
-                  <div
-                    key={item.id}
-                    className="flex items-center gap-2 bg-white dark:bg-gray-800/60 px-3 py-1.5 rounded-xl border border-green-100 dark:border-green-700/30 text-sm"
-                  >
+                  <div key={item.id} className="flex items-center gap-2 bg-white dark:bg-gray-800/60 px-3 py-1.5 rounded-xl border border-green-100 dark:border-green-700/30 text-sm">
                     <span className="font-medium text-gray-800 dark:text-gray-200">{item.name}</span>
                     <span className="text-green-600 dark:text-green-400 font-semibold">₹{item.price}</span>
                   </div>
@@ -104,7 +91,6 @@ export const VendorDashboard: React.FC = () => {
               </div>
             </div>
           ) : (
-            /* No stall yet — CTA */
             <motion.div
               whileHover={{ scale: 1.01 }}
               className="relative overflow-hidden bg-gradient-to-br from-green-500/10 to-emerald-500/10 dark:from-green-900/30 dark:to-emerald-900/30 rounded-2xl border-2 border-dashed border-green-300 dark:border-green-700/50 p-8 text-center cursor-pointer"
@@ -174,7 +160,6 @@ export const VendorDashboard: React.FC = () => {
               <p className="text-gray-600 dark:text-gray-400 text-sm">View and update order status</p>
             </motion.div>
           </Link>
-
           <Link to="/vendor/queue">
             <motion.div
               whileHover={{ scale: 1.02, boxShadow: '0 0 30px rgba(168, 85, 247, 0.3)' }}
@@ -185,7 +170,6 @@ export const VendorDashboard: React.FC = () => {
               <p className="text-gray-600 dark:text-gray-400 text-sm">Organize and optimize your queue</p>
             </motion.div>
           </Link>
-
           <Link to="/vendor/analytics">
             <motion.div
               whileHover={{ scale: 1.02, boxShadow: '0 0 30px rgba(34, 197, 94, 0.3)' }}
@@ -232,15 +216,11 @@ export const VendorDashboard: React.FC = () => {
                           {index + 1}
                         </div>
                       </div>
-                      <span
-                        className={`inline-block px-2 py-1 rounded-full text-xs font-semibold ${
-                          order.status === 'placed'
-                            ? 'bg-blue-500/20 text-blue-600 dark:text-blue-400'
-                            : order.status === 'preparing'
-                            ? 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400'
-                            : 'bg-green-500/20 text-green-600 dark:text-green-400'
-                        }`}
-                      >
+                      <span className={`inline-block px-2 py-1 rounded-full text-xs font-semibold ${
+                        order.status === 'placed' ? 'bg-blue-500/20 text-blue-600 dark:text-blue-400'
+                        : order.status === 'preparing' ? 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400'
+                        : 'bg-green-500/20 text-green-600 dark:text-green-400'
+                      }`}>
                         {order.status}
                       </span>
                     </motion.div>
@@ -288,17 +268,12 @@ export const VendorDashboard: React.FC = () => {
                   </div>
                   <div className="flex items-center gap-4">
                     <p className="text-xl font-bold text-green-600 dark:text-green-400">₹{order.total.toFixed(2)}</p>
-                    <span
-                      className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                        order.status === 'placed'
-                          ? 'bg-blue-500/20 text-blue-600 dark:text-blue-400'
-                          : order.status === 'preparing'
-                          ? 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400'
-                          : order.status === 'ready'
-                          ? 'bg-green-500/20 text-green-600 dark:text-green-400'
-                          : 'bg-purple-500/20 text-purple-600 dark:text-purple-400'
-                      }`}
-                    >
+                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                      order.status === 'placed' ? 'bg-blue-500/20 text-blue-600 dark:text-blue-400'
+                      : order.status === 'preparing' ? 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400'
+                      : order.status === 'ready' ? 'bg-green-500/20 text-green-600 dark:text-green-400'
+                      : 'bg-purple-500/20 text-purple-600 dark:text-purple-400'
+                    }`}>
                       {order.status}
                     </span>
                   </div>

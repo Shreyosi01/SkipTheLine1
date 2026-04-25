@@ -1,5 +1,3 @@
-
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { api } from '../../api/client';
 
@@ -67,7 +65,6 @@ interface AppContextType {
   cart: CartItem[];
   orders: Order[];
   isLoading: boolean;
-  isInitializing: boolean;
   stalls: Stall[];
   createStall: (name: string, items: StallItem[], category?: string) => Promise<void>;
   updateStall: (id: string, name: string, items: StallItem[], category?: string) => Promise<void>;
@@ -90,8 +87,8 @@ interface AppContextType {
   ) => Promise<void>;
   logoutUser: () => void;
   deleteUser: () => Promise<void>;
-  updateProfile: (data: { name?: string; email?: string; phone?: string; avatar?: string }) => Promise<void>;
   fetchMyOrders: () => Promise<void>;
+  fetchVendorOrders: () => Promise<void>;
   fetchStalls: () => Promise<void>;
 }
 
@@ -120,71 +117,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [orders, setOrders] = useState<Order[]>([]);
   const [stalls, setStalls] = useState<Stall[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [isInitializing, setIsInitializing] = useState(true);
 
   const stallsRef = React.useRef<Stall[]>([]);
   useEffect(() => { stallsRef.current = stalls; }, [stalls]);
 
   useEffect(() => {
-    const initApp = async () => {
-      try {
-        await Promise.all([fetchStalls(), restoreSession()]);
-      } finally {
-        setIsInitializing(false);
-      }
-    };
-    initApp();
-  }, []);
-
-  // ✅ UPDATED: restoreSession now calls GET /auth/me to verify the stored token
-  // is still valid on the server before trusting it. Previously, the app would
-  // silently use an expired or revoked token until the first authenticated API
-  // call failed. Now if the token is invalid, the session is cleared immediately.
-  //
-  // Avatar is intentionally preserved from localStorage because the backend
-  // doesn't store avatar URLs — the user picks them client-side only.
-  const restoreSession = async () => {
-    const savedToken = localStorage.getItem('token');
+    fetchStalls();
     const savedUser = localStorage.getItem('user');
-    if (!savedToken || !savedUser) return;
-
-    try {
-      // Verify token and get fresh user data from the server
-      const freshUser = await api.getMe();
-
-      // Merge server data with locally stored avatar (not persisted in DB)
-      let localAvatar: string | undefined;
+    const savedToken = localStorage.getItem('token');
+    if (savedUser && savedToken) {
       try {
-        localAvatar = JSON.parse(savedUser)?.avatar;
-      } catch {
-        localAvatar = undefined;
+        const parsed = JSON.parse(savedUser);
+        setUserState(parsed);
+        setUserMode(parsed.mode);
+        // Fetch the right orders based on role
+        if (parsed.mode === 'vendor') {
+          api.vendorOrders()
+            .then(res => { if (Array.isArray(res)) mapAndSetOrders(res); })
+            .catch(err => console.error('Auto-fetch vendor orders failed:', err));
+        } else {
+          api.myOrders()
+            .then(res => { if (Array.isArray(res)) mapAndSetOrders(res); })
+            .catch(err => console.error('Auto-fetch orders failed:', err));
+        }
+      } catch (e) {
+        console.error('Failed to parse saved user', e);
       }
-
-      const u: User = {
-        id: String(freshUser.id),
-        name: freshUser.name,
-        email: freshUser.email,
-        mode: freshUser.role as UserMode,
-        phone: freshUser.phone,
-        avatar: localAvatar,
-      };
-      setUserState(u);
-      setUserMode(u.mode);
-      localStorage.setItem('user', JSON.stringify(u));
-
-      // Fetch orders in background — don't block session restore
-      api.myOrders()
-        .then(res => { if (Array.isArray(res)) mapAndSetOrders(res); })
-        .catch(err => console.error('Auto-fetch orders failed:', err));
-
-    } catch (err) {
-      // Token is expired or invalid — clear everything so the user gets the
-      // login page instead of a broken authenticated state
-      console.warn('Session restore failed — clearing local session:', err);
-      localStorage.removeItem('user');
-      localStorage.removeItem('token');
     }
-  };
+  }, []);
 
   const fetchStalls = async () => {
     try {
@@ -210,6 +170,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setUserState(u);
     if (u) {
       localStorage.setItem('user', JSON.stringify(u));
+      if (u.mode === 'vendor' && u.avatar) {
+        setStalls(prev =>
+          prev.map(stall => stall.vendorId === u.id ? { ...stall, image: u.avatar } : stall)
+        );
+      }
     } else {
       localStorage.removeItem('user');
       localStorage.removeItem('token');
@@ -255,7 +220,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
       setUser(u);
       setUserMode(u.mode);
-      await Promise.all([fetchMyOrders(), fetchStalls()]);
+      // Fetch the right orders based on role immediately after login
+      if (u.mode === 'vendor') {
+        await Promise.all([fetchVendorOrders(), fetchStalls()]);
+      } else {
+        await Promise.all([fetchMyOrders(), fetchStalls()]);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -304,34 +274,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  // ✅ NEW: updateProfile persists changes to the DB via PUT /auth/me,
-  // then merges the server response with the locally stored avatar.
-  // Previously Profile.tsx only called setUser() which wrote to localStorage
-  // only — a page refresh would revert all edits.
-  const updateProfile = async (data: { name?: string; email?: string; phone?: string; avatar?: string }) => {
-    const { avatar, ...serverFields } = data;
-
-    // Only send fields the backend knows about
-    const updated = await api.updateMe(serverFields);
-
-    // Merge fresh server data with avatar (stored locally only)
-    const newUser: User = {
-      id: String(updated.id),
-      name: updated.name,
-      email: updated.email,
-      phone: updated.phone,
-      mode: updated.role as UserMode,
-      avatar: avatar ?? user?.avatar,
-    };
-    setUser(newUser);
-  };
-
+  // For customers — fetches their own orders
   const fetchMyOrders = async () => {
     try {
       const res = await api.myOrders();
       if (Array.isArray(res)) mapAndSetOrders(res);
     } catch (e) {
       console.error('Failed to fetch orders', e);
+    }
+  };
+
+  // For vendors — fetches all orders for their stall
+  const fetchVendorOrders = async () => {
+    try {
+      const res = await api.vendorOrders();
+      if (Array.isArray(res)) mapAndSetOrders(res);
+    } catch (e) {
+      console.error('Failed to fetch vendor orders', e);
     }
   };
 
@@ -425,11 +384,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   return (
     <AppContext.Provider value={{
-      user, userMode, cart, orders, isLoading, isInitializing, stalls,
+      user, userMode, cart, orders, isLoading, stalls,
       setUser, setUserMode, addToCart, removeFromCart, clearCart,
       addOrder, updateOrderStatus, loginUser, registerUser,
-      logoutUser, deleteUser, updateProfile,
-      fetchMyOrders, fetchStalls, createStall, updateStall, getVendorStall,
+      logoutUser, deleteUser,
+      fetchMyOrders, fetchVendorOrders, fetchStalls,
+      createStall, updateStall, getVendorStall,
     }}>
       {children}
     </AppContext.Provider>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { Clock, ChefHat, Package, CheckCircle, ArrowLeft } from 'lucide-react';
 import { useApp } from '../context/AppContext';
@@ -7,11 +7,18 @@ import { toast } from 'sonner';
 import { api } from '../../api/client';
 
 export const VendorOrders: React.FC = () => {
-  const { orders, updateOrderStatus, user } = useApp();
+  const { orders, updateOrderStatus, user, fetchVendorOrders, getVendorStall } = useApp();
   const navigate = useNavigate();
   const [filter, setFilter] = useState<'all' | 'placed' | 'preparing' | 'ready'>('all');
 
-  const vendorOrders = orders.filter((o) => o.stallId === user?.stallId);
+  // Refresh vendor orders every time this page is visited
+  useEffect(() => {
+    fetchVendorOrders();
+  }, []);
+
+  const vendorStall = getVendorStall();
+  const stallId = vendorStall?.id ?? user?.stallId;
+  const vendorOrders = orders.filter((o) => o.stallId === stallId);
   const filteredOrders = filter === 'all' ? vendorOrders : vendorOrders.filter((o) => o.status === filter);
 
   const handleStatusChange = async (orderId: string, newStatus: 'placed' | 'preparing' | 'ready' | 'completed') => {
@@ -29,12 +36,12 @@ export const VendorOrders: React.FC = () => {
   };
 
   const getNextStatus = (currentStatus: string) => {
-    const statusFlow = {
+    const statusFlow: Record<string, string> = {
       placed: 'preparing',
       preparing: 'ready',
       ready: 'completed',
     };
-    return statusFlow[currentStatus as keyof typeof statusFlow];
+    return statusFlow[currentStatus];
   };
 
   return (
@@ -51,11 +58,7 @@ export const VendorOrders: React.FC = () => {
           <span>Back to Dashboard</span>
         </motion.button>
 
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-8"
-        >
+        <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
           <h1 className="text-4xl font-bold text-white mb-2">Order Management</h1>
           <p className="text-gray-400">Manage and update order statuses</p>
         </motion.div>
@@ -84,11 +87,7 @@ export const VendorOrders: React.FC = () => {
         </motion.div>
 
         {filteredOrders.length === 0 ? (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="text-center py-20"
-          >
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-20">
             <Package className="w-20 h-20 mx-auto mb-4 text-gray-600" />
             <h2 className="text-2xl font-semibold text-white mb-2">No orders found</h2>
             <p className="text-gray-400">Orders will appear here when customers place them</p>
@@ -97,7 +96,6 @@ export const VendorOrders: React.FC = () => {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {filteredOrders.map((order, index) => {
               const nextStatus = getNextStatus(order.status);
-              
               return (
                 <motion.div
                   key={order.id}
@@ -113,59 +111,46 @@ export const VendorOrders: React.FC = () => {
                       </div>
                       <div>
                         <p className="text-white font-semibold">{order.stallName}</p>
-                        <p className="text-gray-400 text-sm">
-                          {new Date(order.timestamp).toLocaleTimeString()}
-                        </p>
+                        <p className="text-gray-400 text-sm">{new Date(order.timestamp).toLocaleTimeString()}</p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-2xl font-bold bg-gradient-to-r from-green-400 to-emerald-400 bg-clip-text text-transparent">
-                        ₹{order.total.toFixed(2)}
-                      </p>
-                    </div>
+                    <p className="text-2xl font-bold bg-gradient-to-r from-green-400 to-emerald-400 bg-clip-text text-transparent">
+                      ₹{order.total.toFixed(2)}
+                    </p>
                   </div>
 
                   <div className="space-y-2 mb-4 p-3 bg-gray-900/50 rounded-lg">
                     {order.items.map((item) => (
                       <div key={item.id} className="flex justify-between text-sm">
-                        <span className="text-gray-300">
-                          {item.quantity}x {item.name}
-                        </span>
+                        <span className="text-gray-300">{item.quantity}x {item.name}</span>
                         <span className="text-gray-400">₹{(item.price * item.quantity).toFixed(2)}</span>
                       </div>
                     ))}
                   </div>
 
                   <div className="mb-4">
-                    <span
-                      className={`inline-flex px-3 py-1 rounded-full text-xs font-semibold ${
-                        order.status === 'placed'
-                          ? 'bg-blue-500/20 text-blue-400 border border-blue-500/50'
-                          : order.status === 'preparing'
-                          ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/50'
-                          : order.status === 'ready'
-                          ? 'bg-green-500/20 text-green-400 border border-green-500/50'
-                          : 'bg-purple-500/20 text-purple-400 border border-purple-500/50'
-                      }`}
-                    >
+                    <span className={`inline-flex px-3 py-1 rounded-full text-xs font-semibold ${
+                      order.status === 'placed' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/50'
+                      : order.status === 'preparing' ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/50'
+                      : order.status === 'ready' ? 'bg-green-500/20 text-green-400 border border-green-500/50'
+                      : 'bg-purple-500/20 text-purple-400 border border-purple-500/50'
+                    }`}>
                       {order.status.toUpperCase()}
                     </span>
                   </div>
 
                   {order.status !== 'completed' && nextStatus && (
-                    <div className="flex gap-3">
-                      <motion.button
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                        onClick={() => handleStatusChange(order.id, nextStatus as any)}
-                        className="flex-1 flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white font-semibold rounded-lg shadow-lg hover:shadow-green-500/50 transition-all"
-                      >
-                        {nextStatus === 'preparing' && <ChefHat className="w-4 h-4" />}
-                        {nextStatus === 'ready' && <Package className="w-4 h-4" />}
-                        {nextStatus === 'completed' && <CheckCircle className="w-4 h-4" />}
-                        Mark as {nextStatus.charAt(0).toUpperCase() + nextStatus.slice(1)}
-                      </motion.button>
-                    </div>
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => handleStatusChange(order.id, nextStatus as any)}
+                      className="w-full flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white font-semibold rounded-lg shadow-lg hover:shadow-green-500/50 transition-all"
+                    >
+                      {nextStatus === 'preparing' && <ChefHat className="w-4 h-4" />}
+                      {nextStatus === 'ready' && <Package className="w-4 h-4" />}
+                      {nextStatus === 'completed' && <CheckCircle className="w-4 h-4" />}
+                      Mark as {nextStatus.charAt(0).toUpperCase() + nextStatus.slice(1)}
+                    </motion.button>
                   )}
 
                   <motion.div
