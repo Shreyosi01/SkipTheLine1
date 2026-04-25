@@ -5,40 +5,36 @@ import { useApp } from '../context/AppContext';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
 
-// Mock avatars representing restaurants/shops (for vendors)
 const SHOP_AVATARS = [
-  "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=150&h=150&fit=crop", 
-  "https://images.unsplash.com/photo-1552566626-52f8b828add9?w=150&h=150&fit=crop", 
-  "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=150&h=150&fit=crop", 
-  "https://images.unsplash.com/photo-1513104890138-7c749659a591?w=150&h=150&fit=crop", 
-  "https://images.unsplash.com/photo-1497935586351-b67a49e012bf?w=150&h=150&fit=crop", 
-  "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=150&h=150&fit=crop", 
-  "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=150&h=150&fit=crop", 
-  "https://images.unsplash.com/photo-1550966871-3ed3cdb5ed0c?w=150&h=150&fit=crop"  
+  "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=150&h=150&fit=crop",
+  "https://images.unsplash.com/photo-1552566626-52f8b828add9?w=150&h=150&fit=crop",
+  "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=150&h=150&fit=crop",
+  "https://images.unsplash.com/photo-1513104890138-7c749659a591?w=150&h=150&fit=crop",
+  "https://images.unsplash.com/photo-1497935586351-b67a49e012bf?w=150&h=150&fit=crop",
+  "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=150&h=150&fit=crop",
+  "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=150&h=150&fit=crop",
+  "https://images.unsplash.com/photo-1550966871-3ed3cdb5ed0c?w=150&h=150&fit=crop",
 ];
 
-// Mock 3D avatars representing users (3 Men: Boy, Young, Middle-aged | 3 Women: Girl, Young, Middle-aged)
 const CUSTOMER_AVATARS = [
-  // Men
-  "https://img.freepik.com/free-psd/3d-illustration-little-boy-with-glasses_23-2149436185.jpg?w=150&h=150&fit=crop", // Young Child (Boy)
-  "https://img.freepik.com/free-psd/3d-illustration-person-with-sunglasses_23-2149436188.jpg?w=150&h=150&fit=crop", // Young Man
-  "https://img.freepik.com/free-psd/3d-illustration-business-man-with-glasses_23-2149436194.jpg?w=150&h=150&fit=crop", // Middle-Aged Man
-  // Women
-  "https://img.freepik.com/free-psd/3d-illustration-little-girl-with-glasses_23-2149436187.jpg?w=150&h=150&fit=crop", // Young Child (Girl)
-  "https://img.freepik.com/free-psd/3d-illustration-person-with-pink-hair_23-2149436186.jpg?w=150&h=150&fit=crop", // Young Woman
-  "https://img.freepik.com/free-psd/3d-illustration-business-woman-with-glasses_23-2149436193.jpg?w=150&h=150&fit=crop"  // Middle-Aged Woman
+  "https://img.freepik.com/free-psd/3d-illustration-little-boy-with-glasses_23-2149436185.jpg?w=150&h=150&fit=crop",
+  "https://img.freepik.com/free-psd/3d-illustration-person-with-sunglasses_23-2149436188.jpg?w=150&h=150&fit=crop",
+  "https://img.freepik.com/free-psd/3d-illustration-business-man-with-glasses_23-2149436194.jpg?w=150&h=150&fit=crop",
+  "https://img.freepik.com/free-psd/3d-illustration-little-girl-with-glasses_23-2149436187.jpg?w=150&h=150&fit=crop",
+  "https://img.freepik.com/free-psd/3d-illustration-person-with-pink-hair_23-2149436186.jpg?w=150&h=150&fit=crop",
+  "https://img.freepik.com/free-psd/3d-illustration-business-woman-with-glasses_23-2149436193.jpg?w=150&h=150&fit=crop",
 ];
 
 export const Profile: React.FC = () => {
-  const { user, orders, setUser, userMode, logoutUser } = useApp(); // ADDED logoutUser
+  const { user, orders, setUser, userMode, logoutUser, deleteUser } = useApp();
   const navigate = useNavigate();
-  
+
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
-  
-  // Extract just the digits for the edit input field
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const initialPhoneDigits = user?.phone?.replace(/\D/g, '').slice(-10) || '';
-  
+
   const [editName, setEditName] = useState(user?.name || '');
   const [editEmail, setEditEmail] = useState(user?.email || '');
   const [editPhone, setEditPhone] = useState(initialPhoneDigits);
@@ -57,40 +53,46 @@ export const Profile: React.FC = () => {
   const completedOrders = userOrders.filter((o) => o.status === 'completed').length;
   const lastOrder = userOrders.length > 0 ? userOrders[userOrders.length - 1] : null;
 
+  const displayPhone = user.phone ? user.phone.replace(/\D/g, '').slice(-10) : '';
+
   const handleLogout = () => {
-    logoutUser(); // Call Context logout to clear cart and orders
+    logoutUser();
     toast.success('Logged out successfully');
     navigate('/auth');
   };
 
-  const handleDeleteAccount = () => {
-    logoutUser(); // Call Context logout to clear everything
-    toast.success('Account deleted successfully');
-    navigate('/auth');
-  };
-
-  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value.replace(/\D/g, ''); // Ensure only numbers
-    if (value.length <= 10) {
-      setEditPhone(value);
+  const handleDeleteAccount = async () => {
+    setIsDeleting(true);
+    try {
+      await deleteUser();
+      toast.success('Account deleted successfully');
+      navigate('/auth');
+    } catch (err: any) {
+      // deleteUser clears the session regardless, but we still show the error
+      toast.error(err.message || 'Failed to delete account');
+      navigate('/auth');
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteConfirm(false);
     }
   };
 
-  // Cleanly display phone with +91 format internally to compare
-  const displayPhone = user.phone ? user.phone.replace(/\D/g, '').slice(-10) : '';
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.replace(/\D/g, '');
+    if (value.length <= 10) setEditPhone(value);
+  };
 
   const handleUpdateProfile = (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Validate Phone Number Length
+
     if (editPhone && editPhone.length !== 10) {
       toast.error('Phone number must be exactly 10 digits');
       return;
     }
 
-    const hasChanges = 
-      editName !== user.name || 
-      editEmail !== user.email || 
+    const hasChanges =
+      editName !== user.name ||
+      editEmail !== user.email ||
       editPhone !== displayPhone ||
       editAvatar !== (user.avatar || '');
 
@@ -104,7 +106,7 @@ export const Profile: React.FC = () => {
       ...user,
       name: editName,
       email: editEmail,
-      phone: editPhone ? `+91${editPhone}` : '', // Append +91 back to save it cleanly
+      phone: editPhone ? `+91${editPhone}` : '',
       avatar: editAvatar,
     });
 
@@ -112,57 +114,26 @@ export const Profile: React.FC = () => {
     setShowEditProfile(false);
   };
 
-  const stats = userMode === 'customer' ? [
-    {
-      icon: Package,
-      label: 'Total Orders',
-      value: userOrders.length,
-      color: 'from-blue-500 to-cyan-500',
-    },
-    {
-      icon: IndianRupee,
-      label: 'Money Spent',
-      value: `₹${totalSpent.toFixed(2)}`,
-      color: 'from-green-500 to-emerald-500',
-    },
-    {
-      icon: ShoppingBag,
-      label: 'Completed Orders',
-      value: completedOrders,
-      color: 'from-purple-500 to-pink-500',
-    },
-  ] : [
-    {
-      icon: Package,
-      label: 'Total Orders',
-      value: userOrders.length,
-      color: 'from-blue-500 to-cyan-500',
-    },
-    {
-      icon: IndianRupee,
-      label: 'Revenue Generated',
-      value: `₹${totalSpent.toFixed(2)}`,
-      color: 'from-green-500 to-emerald-500',
-    },
-    {
-      icon: TrendingUp,
-      label: 'Completed Orders',
-      value: completedOrders,
-      color: 'from-purple-500 to-pink-500',
-    },
-  ];
+  const stats = userMode === 'customer'
+    ? [
+        { icon: Package, label: 'Total Orders', value: userOrders.length, color: 'from-blue-500 to-cyan-500' },
+        { icon: IndianRupee, label: 'Money Spent', value: `₹${totalSpent.toFixed(2)}`, color: 'from-green-500 to-emerald-500' },
+        { icon: ShoppingBag, label: 'Completed Orders', value: completedOrders, color: 'from-purple-500 to-pink-500' },
+      ]
+    : [
+        { icon: Package, label: 'Total Orders', value: userOrders.length, color: 'from-blue-500 to-cyan-500' },
+        { icon: IndianRupee, label: 'Revenue Generated', value: `₹${totalSpent.toFixed(2)}`, color: 'from-green-500 to-emerald-500' },
+        { icon: TrendingUp, label: 'Completed Orders', value: completedOrders, color: 'from-purple-500 to-pink-500' },
+      ];
 
   const avatarsToDisplay = userMode === 'vendor' ? SHOP_AVATARS : CUSTOMER_AVATARS;
 
   return (
     <div className="min-h-screen bg-white dark:bg-gray-900 pt-20 pb-12 transition-colors duration-200">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+
         {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-8"
-        >
+        <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
           <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-2">My Profile</h1>
           <p className="text-gray-600 dark:text-gray-400">Manage your account and preferences</p>
         </motion.div>
@@ -172,11 +143,7 @@ export const Profile: React.FC = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className={`bg-gradient-to-br ${
-            userMode === 'customer'
-              ? 'from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-green-200 dark:border-green-500/30'
-              : 'from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-green-200 dark:border-green-500/30'
-          } backdrop-blur-sm rounded-xl p-8 border mb-8`}
+          className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border border-green-200 dark:border-green-500/30 backdrop-blur-sm rounded-xl p-8 mb-8"
         >
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-6">
@@ -252,7 +219,7 @@ export const Profile: React.FC = () => {
           })}
         </div>
 
-        {/* Last Order Section */}
+        {/* Last Order */}
         {lastOrder && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -263,9 +230,7 @@ export const Profile: React.FC = () => {
             <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Last Order</h3>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
-                <div className={`w-12 h-12 rounded-full bg-gradient-to-r ${
-                  userMode === 'customer' ? 'from-blue-500 to-cyan-500' : 'from-blue-500 to-cyan-500'
-                } flex items-center justify-center text-white font-bold`}>
+                <div className="w-12 h-12 rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 flex items-center justify-center text-white font-bold">
                   {lastOrder.token}
                 </div>
                 <div>
@@ -278,17 +243,12 @@ export const Profile: React.FC = () => {
               </div>
               <div className="text-right">
                 <p className="text-2xl font-bold text-green-600 dark:text-green-400">₹{lastOrder.total.toFixed(2)}</p>
-                <span
-                  className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${
-                    lastOrder.status === 'placed'
-                      ? 'bg-green-500/20 text-green-600 dark:text-green-400'
-                      : lastOrder.status === 'preparing'
-                      ? 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400'
-                      : lastOrder.status === 'ready'
-                      ? 'bg-green-500/20 text-green-600 dark:text-green-400'
-                      : 'bg-purple-500/20 text-purple-600 dark:text-purple-400'
-                  }`}
-                >
+                <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${
+                  lastOrder.status === 'placed' ? 'bg-green-500/20 text-green-600 dark:text-green-400'
+                  : lastOrder.status === 'preparing' ? 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400'
+                  : lastOrder.status === 'ready' ? 'bg-green-500/20 text-green-600 dark:text-green-400'
+                  : 'bg-purple-500/20 text-purple-600 dark:text-purple-400'
+                }`}>
                   {lastOrder.status}
                 </span>
               </div>
@@ -317,9 +277,7 @@ export const Profile: React.FC = () => {
                   className="flex items-center justify-between p-3 bg-white dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-700/50"
                 >
                   <div className="flex items-center gap-3">
-                    <div className={`w-8 h-8 rounded-full bg-gradient-to-r ${
-                      userMode === 'customer' ? 'from-blue-500 to-cyan-500' : 'from-blue-500 to-cyan-500'
-                    } flex items-center justify-center text-white text-xs font-bold`}>
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 flex items-center justify-center text-white text-xs font-bold">
                       {order.token}
                     </div>
                     <div>
@@ -381,34 +339,31 @@ export const Profile: React.FC = () => {
               className="bg-white dark:bg-gray-800 rounded-xl p-6 max-w-lg w-full border border-gray-200 dark:border-purple-500/20 overflow-y-auto max-h-[90vh]"
             >
               <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Edit Profile</h3>
-              
               <form onSubmit={handleUpdateProfile} className="space-y-4">
-                {/* Avatar Selection Based on Role */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     {userMode === 'vendor' ? 'Shop Avatar' : 'Profile Avatar'}
                   </label>
                   <div className={`grid gap-3 mb-4 ${userMode === 'vendor' ? 'grid-cols-4 sm:grid-cols-4' : 'grid-cols-3 sm:grid-cols-3'}`}>
                     {avatarsToDisplay.map((avatarUrl, index) => (
-                      <div 
+                      <div
                         key={index}
                         onClick={() => setEditAvatar(avatarUrl)}
                         className={`relative aspect-square cursor-pointer rounded-xl overflow-hidden border-2 bg-gray-50 dark:bg-gray-700 transition-all duration-200 ${
-                          editAvatar === avatarUrl 
-                            ? 'border-green-500 scale-105 shadow-md shadow-green-500/20 z-10' 
+                          editAvatar === avatarUrl
+                            ? 'border-green-500 scale-105 shadow-md shadow-green-500/20 z-10'
                             : 'border-transparent hover:scale-105 hover:opacity-90'
                         }`}
                       >
-                        <img 
-                          src={avatarUrl} 
-                          alt={`Avatar option ${index + 1}`} 
+                        <img
+                          src={avatarUrl}
+                          alt={`Avatar option ${index + 1}`}
                           className="w-full h-full object-cover mix-blend-multiply dark:mix-blend-normal"
                         />
                       </div>
                     ))}
                   </div>
                 </div>
-
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     {userMode === 'vendor' ? 'Shop Name' : 'Name'}
@@ -421,11 +376,8 @@ export const Profile: React.FC = () => {
                     className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 outline-none text-gray-900 dark:text-white"
                   />
                 </div>
-                
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Email
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
                   <input
                     type="email"
                     value={editEmail}
@@ -434,11 +386,8 @@ export const Profile: React.FC = () => {
                     className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 outline-none text-gray-900 dark:text-white"
                   />
                 </div>
-
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Phone Number
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Phone Number</label>
                   <div className="flex">
                     <span className="inline-flex items-center px-4 py-2 bg-gray-200 dark:bg-gray-600 border border-r-0 border-gray-300 dark:border-gray-600 rounded-l-lg text-gray-700 dark:text-gray-300 font-semibold select-none">
                       +91
@@ -453,7 +402,6 @@ export const Profile: React.FC = () => {
                     />
                   </div>
                 </div>
-
                 <div className="flex gap-3 mt-6 pt-4">
                   <motion.button
                     type="button"
@@ -490,7 +438,7 @@ export const Profile: React.FC = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-            onClick={() => setShowDeleteConfirm(false)}
+            onClick={() => !isDeleting && setShowDeleteConfirm(false)}
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
@@ -500,29 +448,42 @@ export const Profile: React.FC = () => {
             >
               <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Delete Account?</h3>
               <p className="text-gray-600 dark:text-gray-400 mb-6">
-                Are you sure you want to delete your account? This action cannot be undone and all your data will be permanently removed.
+                Are you sure you want to delete your account? This action cannot be undone and all your data will be permanently removed from our servers.
               </p>
               <div className="flex gap-3">
                 <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
+                  whileHover={{ scale: isDeleting ? 1 : 1.02 }}
+                  whileTap={{ scale: isDeleting ? 1 : 0.98 }}
                   onClick={() => setShowDeleteConfirm(false)}
-                  className="flex-1 py-3 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white font-semibold rounded-lg"
+                  disabled={isDeleting}
+                  className="flex-1 py-3 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white font-semibold rounded-lg disabled:opacity-50"
                 >
                   Cancel
                 </motion.button>
                 <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
+                  whileHover={{ scale: isDeleting ? 1 : 1.02 }}
+                  whileTap={{ scale: isDeleting ? 1 : 0.98 }}
                   onClick={handleDeleteAccount}
-                  className="flex-1 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white font-semibold rounded-lg shadow-lg"
+                  disabled={isDeleting}
+                  className="flex-1 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white font-semibold rounded-lg shadow-lg disabled:opacity-60 flex items-center justify-center gap-2"
                 >
-                  Delete
+                  {isDeleting ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                      </svg>
+                      Deleting...
+                    </>
+                  ) : (
+                    'Delete'
+                  )}
                 </motion.button>
               </div>
             </motion.div>
           </motion.div>
         )}
+
       </div>
     </div>
   );

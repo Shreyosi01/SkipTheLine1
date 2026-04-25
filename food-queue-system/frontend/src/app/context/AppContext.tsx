@@ -86,6 +86,7 @@ interface AppContextType {
     phone?: string
   ) => Promise<void>;
   logoutUser: () => void;
+  deleteUser: () => Promise<void>;
   fetchMyOrders: () => Promise<void>;
   fetchStalls: () => Promise<void>;
 }
@@ -96,7 +97,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 const mapStall = (s: any, menuItems?: any[]): Stall => ({
   id: String(s.id),
   vendorId: String(s.owner_id),
-  stallName: s.name,           // backend field is "name"
+  stallName: s.name,
   category: s.category,
   items: (menuItems || []).map((i: any) => ({
     id: String(i.id),
@@ -117,7 +118,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [stalls, setStalls] = useState<Stall[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Ref so mapAndSetOrders always sees latest stalls without stale closure
   const stallsRef = React.useRef<Stall[]>([]);
   useEffect(() => { stallsRef.current = stalls; }, [stalls]);
 
@@ -174,7 +174,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  // OrderResponse has no stall_name — resolve it from the stalls list
   const resolveStallName = (stallId: string): string =>
     stallsRef.current.find(s => s.id === stallId)?.stallName || 'Stall';
 
@@ -242,11 +241,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const logoutUser = () => {
-    setUser(null);
+  // Clears all local state and storage — used by both logout and delete
+  const clearSession = () => {
+    setUserState(null);
     setOrders([]);
     setCart([]);
+    localStorage.removeItem('user');
+    localStorage.removeItem('token');
     fetchStalls();
+  };
+
+  const logoutUser = () => {
+    clearSession();
+  };
+
+  // Calls the backend DELETE /auth/delete, then clears local state
+  const deleteUser = async () => {
+    try {
+      await api.deleteAccount();
+    } catch (err: any) {
+      // Re-throw so the UI can show a proper error toast
+      throw new Error(err.message || 'Failed to delete account');
+    } finally {
+      // Always clear local state even if backend call fails,
+      // so the user isn't stuck in a broken logged-in state
+      clearSession();
+    }
   };
 
   const fetchMyOrders = async () => {
@@ -284,7 +304,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const res = await api.createStall({ name, category, avatar: user.avatar });
       const stallId = res.id;
-
       await Promise.all(
         items.map(item =>
           api.addMenuItem({
@@ -296,7 +315,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           })
         )
       );
-
       const updatedUser = { ...user, stallId: String(stallId) };
       setUser(updatedUser);
       await fetchStalls();
@@ -310,19 +328,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!user) return;
     try {
       await api.updateStall(parseInt(id), { name, category, avatar: user.avatar });
-
       const currentMenu: any[] = await api.getMenu(parseInt(id)).catch(() => []);
       const currentIds = new Set(currentMenu.map((i: any) => String(i.id)));
       const incomingExistingIds = new Set(
         items.filter(i => i.id && currentIds.has(i.id)).map(i => i.id)
       );
-
       await Promise.all(
         currentMenu
           .filter((i: any) => !incomingExistingIds.has(String(i.id)))
           .map((i: any) => api.deleteMenuItem(i.id))
       );
-
       await Promise.all(
         items.map(item => {
           if (item.id && currentIds.has(item.id)) {
@@ -342,7 +357,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           });
         })
       );
-
       await fetchStalls();
     } catch (e: any) {
       console.error('Failed to update stall', e);
@@ -356,7 +370,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     <AppContext.Provider value={{
       user, userMode, cart, orders, isLoading, stalls,
       setUser, setUserMode, addToCart, removeFromCart, clearCart,
-      addOrder, updateOrderStatus, loginUser, registerUser, logoutUser,
+      addOrder, updateOrderStatus, loginUser, registerUser,
+      logoutUser, deleteUser,
       fetchMyOrders, fetchStalls, createStall, updateStall, getVendorStall,
     }}>
       {children}

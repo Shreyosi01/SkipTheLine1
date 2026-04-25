@@ -11,7 +11,6 @@ const authHeaders = () => ({
 const handleResponse = async (response: Response) => {
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    // FastAPI 422 puts the real reason in data.detail
     const message =
       typeof data.detail === "string"
         ? data.detail
@@ -36,6 +35,13 @@ export const api = {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
+    }).then(handleResponse),
+
+  // ── Account ─────────────────────────────────────
+  deleteAccount: () =>
+    fetch(`${BASE_URL}/auth/delete`, {
+      method: "DELETE",
+      headers: authHeaders(),
     }).then(handleResponse),
 
   // ── Stalls ──────────────────────────────────────
