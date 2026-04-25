@@ -7,13 +7,19 @@ const authHeaders = () => ({
   "Authorization": `Bearer ${getToken()}`,
 });
 
-// Helper to handle responses and catch HTTP errors
+// Returns the parsed JSON whether ok or not — callers check res.detail for errors
 const handleResponse = async (response: Response) => {
+  const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+    const message =
+      typeof data.detail === "string"
+        ? data.detail
+        : Array.isArray(data.detail)
+        ? data.detail.map((e: any) => `${e.loc?.slice(-1)[0]}: ${e.msg}`).join(", ")
+        : `HTTP error! status: ${response.status}`;
+    throw new Error(message);
   }
-  return response.json();
+  return data;
 };
 
 export const api = {
@@ -31,7 +37,40 @@ export const api = {
       body: JSON.stringify(data),
     }).then(handleResponse),
 
-  // Use this to re-fetch menu items after a refresh
+  // ── Account ─────────────────────────────────────
+  deleteAccount: () =>
+    fetch(`${BASE_URL}/auth/delete`, {
+      method: "DELETE",
+      headers: authHeaders(),
+    }).then(handleResponse),
+
+  // ── Stalls ──────────────────────────────────────
+  listStalls: () =>
+    fetch(`${BASE_URL}/stalls`).then(handleResponse),
+
+  getMyStall: () =>
+    fetch(`${BASE_URL}/stalls/vendor/me`, {
+      headers: authHeaders(),
+    }).then(handleResponse),
+
+  createStall: (data: { name: string; category: string; avatar?: string }) =>
+    fetch(`${BASE_URL}/stalls`, {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify(data),
+    }).then(handleResponse),
+
+  updateStall: (stallId: number, data: { name: string; category: string; avatar?: string }) =>
+    fetch(`${BASE_URL}/stalls/${stallId}`, {
+      method: "PUT",
+      headers: authHeaders(),
+      body: JSON.stringify(data),
+    }).then(handleResponse),
+
+  getStall: (stallId: number) =>
+    fetch(`${BASE_URL}/stalls/${stallId}`).then(handleResponse),
+
+  // ── Menu ────────────────────────────────────────
   getMenu: (stallId: number) =>
     fetch(`${BASE_URL}/menu/${stallId}`).then(handleResponse),
 
@@ -55,7 +94,8 @@ export const api = {
       headers: authHeaders(),
     }).then(handleResponse),
 
-  placeOrder: (data: object) =>
+  // ── Orders ──────────────────────────────────────
+  placeOrder: (data: { stall_id: number; items: { menu_item_id: number; quantity: number }[] }) =>
     fetch(`${BASE_URL}/orders`, {
       method: "POST",
       headers: authHeaders(),
@@ -84,6 +124,7 @@ export const api = {
       body: JSON.stringify({ status }),
     }).then(handleResponse),
 
+  // ── Queue ───────────────────────────────────────
   getQueue: (stallId: number) =>
     fetch(`${BASE_URL}/queue/${stallId}`).then(handleResponse),
 

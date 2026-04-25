@@ -10,8 +10,8 @@ export interface User {
   email: string;
   mode: UserMode;
   stallId?: string;
-  phone?: string; 
-  avatar?: string; 
+  phone?: string;
+  avatar?: string;
 }
 
 export interface CartItem {
@@ -43,7 +43,8 @@ export interface Stall {
   items: StallItem[];
   updatedAt: string;
   status: 'new' | 'updated';
-  image?: string; // Added to store the vendor's avatar for the stall
+  image?: string;
+  category?: string;
 }
 
 export interface Order {
@@ -65,8 +66,8 @@ interface AppContextType {
   orders: Order[];
   isLoading: boolean;
   stalls: Stall[];
-  createStall: (name: string, items: StallItem[]) => Promise<void>;
-  updateStall: (id: string, name: string, items: StallItem[]) => Promise<void>;
+  createStall: (name: string, items: StallItem[], category?: string) => Promise<void>;
+  updateStall: (id: string, name: string, items: StallItem[], category?: string) => Promise<void>;
   getVendorStall: () => Stall | undefined;
   setUser: (user: User | null) => void;
   setUserMode: (mode: UserMode) => void;
@@ -77,18 +78,37 @@ interface AppContextType {
   updateOrderStatus: (id: string, status: OrderStatus) => void;
   loginUser: (email: string, password: string) => Promise<void>;
   registerUser: (
-    name: string, 
-    email: string, 
-    password: string, 
-    role: UserMode, 
-    stallId?: number, 
+    name: string,
+    email: string,
+    password: string,
+    role: UserMode,
+    stallId?: number,
     phone?: string
-  ) => Promise<void>; 
+  ) => Promise<void>;
   logoutUser: () => void;
+  deleteUser: () => Promise<void>;
   fetchMyOrders: () => Promise<void>;
+  fetchStalls: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
+
+// ── Map backend stall → frontend Stall ───────────────────────────────────────
+const mapStall = (s: any, menuItems?: any[]): Stall => ({
+  id: String(s.id),
+  vendorId: String(s.owner_id),
+  stallName: s.name,
+  category: s.category,
+  items: (menuItems || []).map((i: any) => ({
+    id: String(i.id),
+    name: i.name,
+    price: i.price,
+    description: i.description,
+  })),
+  updatedAt: s.updated_at || new Date().toISOString(),
+  status: 'new' as const,
+  image: s.avatar || s.image_url,
+});
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUserState] = useState<User | null>(null);
@@ -98,7 +118,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [stalls, setStalls] = useState<Stall[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
+  const stallsRef = React.useRef<Stall[]>([]);
+  useEffect(() => { stallsRef.current = stalls; }, [stalls]);
+
   useEffect(() => {
+    fetchStalls();
     const savedUser = localStorage.getItem('user');
     const savedToken = localStorage.getItem('token');
     if (savedUser && savedToken) {
@@ -106,22 +130,43 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const parsed = JSON.parse(savedUser);
         setUserState(parsed);
         setUserMode(parsed.mode);
-        api.myOrders().then(res => {
-          if (Array.isArray(res)) mapAndSetOrders(res);
-        }).catch(err => console.error("Auto-fetch orders failed:", err));
+        api.myOrders()
+          .then(res => { if (Array.isArray(res)) mapAndSetOrders(res); })
+          .catch(err => console.error('Auto-fetch orders failed:', err));
       } catch (e) {
-        console.error("Failed to parse saved user", e);
+        console.error('Failed to parse saved user', e);
       }
     }
   }, []);
+
+  const fetchStalls = async () => {
+    try {
+      const res = await api.listStalls();
+      if (!Array.isArray(res)) return;
+      const stallsWithMenus = await Promise.all(
+        res.map(async (s: any) => {
+          try {
+            const menu = await api.getMenu(s.id);
+            return mapStall(s, Array.isArray(menu) ? menu : []);
+          } catch {
+            return mapStall(s, []);
+          }
+        })
+      );
+      setStalls(stallsWithMenus);
+    } catch (e) {
+      console.error('Failed to fetch stalls', e);
+    }
+  };
 
   const setUser = (u: User | null) => {
     setUserState(u);
     if (u) {
       localStorage.setItem('user', JSON.stringify(u));
-      // MAGIC SYNC: If vendor updates their profile avatar, update their stall's image instantly!
       if (u.mode === 'vendor' && u.avatar) {
-        setStalls((prev) => prev.map(stall => stall.vendorId === u.id ? { ...stall, image: u.avatar } : stall));
+        setStalls(prev =>
+          prev.map(stall => stall.vendorId === u.id ? { ...stall, image: u.avatar } : stall)
+        );
       }
     } else {
       localStorage.removeItem('user');
@@ -129,11 +174,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const resolveStallName = (stallId: string): string =>
+    stallsRef.current.find(s => s.id === stallId)?.stallName || 'Stall';
+
   const mapAndSetOrders = (apiData: any[]) => {
     const mapped: Order[] = apiData.map((o: any) => ({
       id: String(o.id),
       stallId: String(o.stall_id),
-      stallName: o.stall_name || 'Stall',
+      stallName: resolveStallName(String(o.stall_id)),
       items: (o.items || []).map((i: any) => ({
         id: String(i.id),
         name: i.menu_item_name || 'Item',
@@ -153,7 +201,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setIsLoading(true);
     try {
       const res = await api.login({ email, password });
-      if (res.detail) throw new Error(res.detail);
       localStorage.setItem('token', res.access_token);
       const u: User = {
         id: String(res.user.id),
@@ -166,19 +213,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
       setUser(u);
       setUserMode(u.mode);
-      await fetchMyOrders();
+      await Promise.all([fetchMyOrders(), fetchStalls()]);
     } finally {
       setIsLoading(false);
     }
   };
 
   const registerUser = async (
-    name: string, email: string, password: string, role: UserMode, stallId?: number, phone?: string 
+    name: string, email: string, password: string, role: UserMode, stallId?: number, phone?: string
   ) => {
     setIsLoading(true);
     try {
       const res = await api.register({ name, email, password, role, stall_id: stallId, phone });
-      if (res.detail) throw new Error(res.detail);
       localStorage.setItem('token', res.access_token);
       const u: User = {
         id: String(res.user.id),
@@ -195,10 +241,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const logoutUser = () => {
-    setUser(null);
+  // Clears all local state and storage — used by both logout and delete
+  const clearSession = () => {
+    setUserState(null);
     setOrders([]);
     setCart([]);
+    localStorage.removeItem('user');
+    localStorage.removeItem('token');
+    fetchStalls();
+  };
+
+  const logoutUser = () => {
+    clearSession();
+  };
+
+  // Calls the backend DELETE /auth/delete, then clears local state
+  const deleteUser = async () => {
+    try {
+      await api.deleteAccount();
+    } catch (err: any) {
+      // Re-throw so the UI can show a proper error toast
+      throw new Error(err.message || 'Failed to delete account');
+    } finally {
+      // Always clear local state even if backend call fails,
+      // so the user isn't stuck in a broken logged-in state
+      clearSession();
+    }
   };
 
   const fetchMyOrders = async () => {
@@ -210,57 +278,101 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const addOrder = (order: Order) => setOrders((prev) => [...prev, order]);
+  const addOrder = (order: Order) => setOrders(prev => [order, ...prev]);
 
   const updateOrderStatus = (id: string, status: OrderStatus) => {
-    setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, status } : o)));
+    setOrders(prev => prev.map(o => o.id === id ? { ...o, status } : o));
   };
 
   const addToCart = (item: CartItem) => {
-    setCart((prev) => {
-      const existing = prev.find((i) => i.id === item.id);
+    setCart(prev => {
+      const existing = prev.find(i => i.id === item.id);
       if (existing) {
-        return prev.map((i) => i.id === item.id ? { ...i, quantity: i.quantity + (item.quantity > 0 ? item.quantity : 1) } : i);
+        return prev.map(i =>
+          i.id === item.id ? { ...i, quantity: i.quantity + (item.quantity > 0 ? item.quantity : 1) } : i
+        );
       }
       return [...prev, item];
     });
   };
 
-  const removeFromCart = (id: string) => setCart((prev) => prev.filter((i) => i.id !== id));
+  const removeFromCart = (id: string) => setCart(prev => prev.filter(i => i.id !== id));
   const clearCart = () => setCart([]);
 
-  const createStall = async (name: string, items: StallItem[]) => {
+  const createStall = async (name: string, items: StallItem[], category = 'snacks') => {
     if (!user) return;
-    const newStall: Stall = {
-      id: Date.now().toString(),
-      vendorId: user.id,
-      stallName: name,
-      items,
-      updatedAt: new Date().toISOString(),
-      status: 'new',
-      image: user.avatar, // Assign vendor avatar on creation
-    };
-    setStalls((prev) => [...prev, newStall]);
+    try {
+      const res = await api.createStall({ name, category, avatar: user.avatar });
+      const stallId = res.id;
+      await Promise.all(
+        items.map(item =>
+          api.addMenuItem({
+            stall_id: stallId,
+            name: item.name,
+            price: item.price,
+            description: item.description || '',
+            is_available: true,
+          })
+        )
+      );
+      const updatedUser = { ...user, stallId: String(stallId) };
+      setUser(updatedUser);
+      await fetchStalls();
+    } catch (e: any) {
+      console.error('Failed to create stall', e);
+      throw e;
+    }
   };
 
-  const updateStall = async (id: string, name: string, items: StallItem[]) => {
-    setStalls((prev) =>
-      prev.map((stall) =>
-        stall.id === id
-          ? { ...stall, stallName: name, items, updatedAt: new Date().toISOString(), status: 'updated', image: user?.avatar || stall.image }
-          : stall
-      )
-    );
+  const updateStall = async (id: string, name: string, items: StallItem[], category = 'snacks') => {
+    if (!user) return;
+    try {
+      await api.updateStall(parseInt(id), { name, category, avatar: user.avatar });
+      const currentMenu: any[] = await api.getMenu(parseInt(id)).catch(() => []);
+      const currentIds = new Set(currentMenu.map((i: any) => String(i.id)));
+      const incomingExistingIds = new Set(
+        items.filter(i => i.id && currentIds.has(i.id)).map(i => i.id)
+      );
+      await Promise.all(
+        currentMenu
+          .filter((i: any) => !incomingExistingIds.has(String(i.id)))
+          .map((i: any) => api.deleteMenuItem(i.id))
+      );
+      await Promise.all(
+        items.map(item => {
+          if (item.id && currentIds.has(item.id)) {
+            return api.updateMenuItem(parseInt(item.id), {
+              name: item.name,
+              price: item.price,
+              description: item.description || '',
+              is_available: true,
+            });
+          }
+          return api.addMenuItem({
+            stall_id: parseInt(id),
+            name: item.name,
+            price: item.price,
+            description: item.description || '',
+            is_available: true,
+          });
+        })
+      );
+      await fetchStalls();
+    } catch (e: any) {
+      console.error('Failed to update stall', e);
+      throw e;
+    }
   };
 
-  const getVendorStall = () => stalls.find((stall) => stall.vendorId === user?.id);
+  const getVendorStall = () => stalls.find(stall => stall.vendorId === user?.id);
 
   return (
     <AppContext.Provider value={{
       user, userMode, cart, orders, isLoading, stalls,
       setUser, setUserMode, addToCart, removeFromCart, clearCart,
-      addOrder, updateOrderStatus, loginUser, registerUser, logoutUser,
-      fetchMyOrders, createStall, updateStall, getVendorStall,
+      addOrder, updateOrderStatus, loginUser, registerUser,
+      logoutUser, deleteUser,
+      fetchMyOrders, fetchStalls, createStall, updateStall, getVendorStall,
     }}>
       {children}
     </AppContext.Provider>
