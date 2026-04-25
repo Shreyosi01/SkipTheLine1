@@ -4,6 +4,7 @@ import { CustomerHome } from './pages/CustomerHome';
 import { StallDetail } from './pages/StallDetail';
 import { Cart } from './pages/Cart';
 import { OrderTracking } from './pages/OrderTracking';
+import { OrderConfirmation } from './pages/OrderConfirmation';
 import { VendorDashboard } from './pages/VendorDashboard';
 import { VendorOrders } from './pages/VendorOrders';
 import { VendorQueue } from './pages/VendorQueue';
@@ -25,6 +26,8 @@ export const router = createBrowserRouter([
       { index: true, Component: CustomerHome },
       { path: 'stall/:id', Component: StallDetail },
       { path: 'cart', Component: Cart },
+      // ✅ confirmation MUST be above order/:id so it isn't caught as id="confirmation"
+      { path: 'order/confirmation', Component: OrderConfirmation },
       { path: 'order/:id', Component: OrderTracking },
 
       // Vendor Routes
@@ -43,4 +46,3 @@ export const router = createBrowserRouter([
     element: <Navigate to="/" replace />,
   },
 ]);
-

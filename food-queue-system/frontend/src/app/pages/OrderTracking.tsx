@@ -9,24 +9,38 @@ import { api } from '../../api/client';
 export const OrderTracking: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { orders, stalls } = useApp();
-  const [progress, setProgress] = useState(0);
-  const [fetchedOrder, setFetchedOrder] = useState<Order | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [notFound, setNotFound] = useState(false);
+  const { orders, stalls, fetchMyOrders } = useApp();
 
-  // First try context, then fall back to API
+  const [fetchedOrder, setFetchedOrder] = useState<Order | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
+  const [progress, setProgress] = useState(0);
+
+  // Always try context first (covers fresh checkout navigation)
   const contextOrder = orders.find((o) => o.id === id);
   const order = contextOrder || fetchedOrder;
 
   useEffect(() => {
-    if (contextOrder || !id) return;
+    if (!id) return;
 
-    // Not in context — fetch from API
-    setLoading(true);
-    api.getOrder(parseInt(id))
-      .then((res: any) => {
-        const stallName = stalls.find(s => s.id === String(res.stall_id))?.stallName || 'Stall';
+    const load = async () => {
+      setLoading(true);
+      setNotFound(false);
+
+      // 1. Refresh orders from backend so context is up to date
+      try {
+        await fetchMyOrders();
+      } catch {
+        // non-fatal — we'll try direct API call below
+      }
+
+      // 2. Check context again after refresh
+      //    (contextOrder will re-evaluate on next render via the selector above)
+      // 3. If still not in context, fetch directly by ID
+      try {
+        const res = await api.getOrder(parseInt(id));
+        const stallName =
+          stalls.find((s) => s.id === String(res.stall_id))?.stallName || 'Stall';
         const mapped: Order = {
           id: String(res.id),
           stallId: String(res.stall_id),
@@ -44,10 +58,29 @@ export const OrderTracking: React.FC = () => {
           timestamp: new Date(res.created_at),
         };
         setFetchedOrder(mapped);
-      })
-      .catch(() => setNotFound(true))
-      .finally(() => setLoading(false));
-  }, [id, contextOrder, stalls]);
+      } catch {
+        // Only mark not-found if context also has nothing
+        setNotFound(true);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  // Update progress bar whenever order status changes
+  useEffect(() => {
+    if (!order) return;
+    const progressMap: Record<string, number> = {
+      placed: 25,
+      preparing: 50,
+      ready: 75,
+      completed: 100,
+    };
+    setProgress(progressMap[order.status] ?? 25);
+  }, [order]);
 
   const queuePosition = order
     ? orders.filter(
@@ -58,12 +91,7 @@ export const OrderTracking: React.FC = () => {
       ).length || 1
     : 0;
 
-  useEffect(() => {
-    if (!order) return;
-    const progressMap = { placed: 25, preparing: 50, ready: 75, completed: 100 };
-    setProgress(progressMap[order.status] ?? 25);
-  }, [order]);
-
+  // ── Loading state ─────────────────────────────────────────────────────────
   if (loading) {
     return (
       <div className="min-h-screen bg-white dark:bg-gray-900 pt-20 flex items-center justify-center">
@@ -75,7 +103,8 @@ export const OrderTracking: React.FC = () => {
     );
   }
 
-  if (notFound || (!loading && !order)) {
+  // ── Not found (only after loading + context check both fail) ─────────────
+  if (notFound && !order) {
     return (
       <div className="min-h-screen bg-white dark:bg-gray-900 pt-20 flex items-center justify-center transition-colors duration-200">
         <div className="text-center">
@@ -91,14 +120,16 @@ export const OrderTracking: React.FC = () => {
     );
   }
 
+  if (!order) return null;
+
   const steps = [
-    { status: 'placed',    icon: Clock,        label: 'Order Placed', time: '0 min' },
-    { status: 'preparing', icon: ChefHat,       label: 'Preparing',   time: '5 min' },
-    { status: 'ready',     icon: Package,       label: 'Ready',       time: '15 min' },
-    { status: 'completed', icon: CheckCircle,   label: 'Completed',   time: '' },
+    { status: 'placed',    icon: Clock,         label: 'Order Placed', time: '0 min' },
+    { status: 'preparing', icon: ChefHat,        label: 'Preparing',   time: '5 min' },
+    { status: 'ready',     icon: Package,        label: 'Ready',       time: '15 min' },
+    { status: 'completed', icon: CheckCircle,    label: 'Completed',   time: '' },
   ];
 
-  const currentStepIndex = steps.findIndex((s) => s.status === order!.status);
+  const currentStepIndex = steps.findIndex((s) => s.status === order.status);
 
   return (
     <div className="min-h-screen bg-white dark:bg-gray-900 pt-20 pb-12 transition-colors duration-200">
@@ -126,15 +157,15 @@ export const OrderTracking: React.FC = () => {
             transition={{ type: 'spring', delay: 0.2 }}
             className="w-20 h-20 mx-auto mb-4 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-full flex items-center justify-center text-white text-3xl font-bold"
           >
-            {order!.token}
+            {order.token}
           </motion.div>
           <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-2">Track Your Order</h1>
-          <p className="text-gray-600 dark:text-gray-400">{order!.stallName}</p>
+          <p className="text-gray-600 dark:text-gray-400">{order.stallName}</p>
         </motion.div>
 
         {/* Status Badge */}
         <div className="flex justify-center mb-8">
-          <StatusBadge status={order!.status} />
+          <StatusBadge status={order.status} />
         </div>
 
         {/* Progress Bar */}
@@ -227,7 +258,7 @@ export const OrderTracking: React.FC = () => {
         >
           <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Order Details</h3>
           <div className="space-y-3">
-            {order!.items.map((item) => (
+            {order.items.map((item) => (
               <div key={item.id} className="flex justify-between text-gray-700 dark:text-gray-300">
                 <span>{item.quantity}x {item.name}</span>
                 <span>₹{(item.price * item.quantity).toFixed(2)}</span>
@@ -236,14 +267,14 @@ export const OrderTracking: React.FC = () => {
             <div className="border-t border-gray-200 dark:border-gray-700 pt-3 flex justify-between">
               <span className="font-semibold text-gray-900 dark:text-white">Total</span>
               <span className="text-xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
-                ₹{order!.total.toFixed(2)}
+                ₹{order.total.toFixed(2)}
               </span>
             </div>
           </div>
         </motion.div>
 
         {/* Live Queue Status */}
-        {order!.status !== 'completed' && (
+        {order.status !== 'completed' && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -272,7 +303,7 @@ export const OrderTracking: React.FC = () => {
                   transition={{ duration: 2, repeat: Infinity }}
                   className="text-4xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent"
                 >
-                  {order!.estimatedTime}m
+                  {order.estimatedTime}m
                 </motion.p>
               </div>
             </div>
