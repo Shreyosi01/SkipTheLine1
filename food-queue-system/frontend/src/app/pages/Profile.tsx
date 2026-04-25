@@ -1,3 +1,6 @@
+
+
+
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { User, Package, IndianRupee, LogOut, Trash2, Clock, ShoppingBag, TrendingUp, Mail, Edit2, Phone, Store } from 'lucide-react';
@@ -26,12 +29,14 @@ const CUSTOMER_AVATARS = [
 ];
 
 export const Profile: React.FC = () => {
-  const { user, orders, setUser, userMode, logoutUser, deleteUser } = useApp();
+  const { user, orders, updateProfile, userMode, logoutUser, deleteUser } = useApp();
   const navigate = useNavigate();
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  // ✅ Track saving state so the button shows a spinner while the API call runs
+  const [isSaving, setIsSaving] = useState(false);
 
   const initialPhoneDigits = user?.phone?.replace(/\D/g, '').slice(-10) || '';
 
@@ -68,7 +73,6 @@ export const Profile: React.FC = () => {
       toast.success('Account deleted successfully');
       navigate('/auth');
     } catch (err: any) {
-      // deleteUser clears the session regardless, but we still show the error
       toast.error(err.message || 'Failed to delete account');
       navigate('/auth');
     } finally {
@@ -82,7 +86,11 @@ export const Profile: React.FC = () => {
     if (value.length <= 10) setEditPhone(value);
   };
 
-  const handleUpdateProfile = (e: React.FormEvent) => {
+  // ✅ UPDATED: Now calls updateProfile() which hits PUT /auth/me on the backend,
+  // persisting name/email/phone to the DB. Avatar is still local-only since the
+  // backend has no image storage — it's merged in AppContext.updateProfile().
+  // Previously this only called setUser() so changes were lost on page refresh.
+  const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (editPhone && editPhone.length !== 10) {
@@ -102,16 +110,21 @@ export const Profile: React.FC = () => {
       return;
     }
 
-    setUser({
-      ...user,
-      name: editName,
-      email: editEmail,
-      phone: editPhone ? `+91${editPhone}` : '',
-      avatar: editAvatar,
-    });
-
-    toast.success('Profile updated successfully');
-    setShowEditProfile(false);
+    setIsSaving(true);
+    try {
+      await updateProfile({
+        name: editName,
+        email: editEmail,
+        phone: editPhone ? `+91${editPhone}` : '',
+        avatar: editAvatar,
+      });
+      toast.success('Profile updated successfully');
+      setShowEditProfile(false);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update profile');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const stats = userMode === 'customer'
@@ -330,7 +343,7 @@ export const Profile: React.FC = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-            onClick={() => setShowEditProfile(false)}
+            onClick={() => !isSaving && setShowEditProfile(false)}
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
@@ -373,7 +386,8 @@ export const Profile: React.FC = () => {
                     value={editName}
                     onChange={(e) => setEditName(e.target.value)}
                     required
-                    className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 outline-none text-gray-900 dark:text-white"
+                    disabled={isSaving}
+                    className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 outline-none text-gray-900 dark:text-white disabled:opacity-50"
                   />
                 </div>
                 <div>
@@ -383,7 +397,8 @@ export const Profile: React.FC = () => {
                     value={editEmail}
                     onChange={(e) => setEditEmail(e.target.value)}
                     required
-                    className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 outline-none text-gray-900 dark:text-white"
+                    disabled={isSaving}
+                    className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 outline-none text-gray-900 dark:text-white disabled:opacity-50"
                   />
                 </div>
                 <div>
@@ -398,33 +413,47 @@ export const Profile: React.FC = () => {
                       onChange={handlePhoneChange}
                       placeholder="10-digit number"
                       maxLength={10}
-                      className="flex-1 w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-r-lg focus:ring-2 focus:ring-green-500 outline-none text-gray-900 dark:text-white"
+                      disabled={isSaving}
+                      className="flex-1 w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-r-lg focus:ring-2 focus:ring-green-500 outline-none text-gray-900 dark:text-white disabled:opacity-50"
                     />
                   </div>
                 </div>
                 <div className="flex gap-3 mt-6 pt-4">
                   <motion.button
                     type="button"
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
+                    whileHover={{ scale: isSaving ? 1 : 1.02 }}
+                    whileTap={{ scale: isSaving ? 1 : 0.98 }}
                     onClick={() => {
+                      if (isSaving) return;
                       setShowEditProfile(false);
                       setEditName(user.name);
                       setEditEmail(user.email);
                       setEditPhone(displayPhone);
                       setEditAvatar(user.avatar || '');
                     }}
-                    className="flex-1 py-3 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white font-semibold rounded-lg"
+                    disabled={isSaving}
+                    className="flex-1 py-3 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white font-semibold rounded-lg disabled:opacity-50"
                   >
                     Cancel
                   </motion.button>
                   <motion.button
                     type="submit"
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    className="flex-1 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-semibold rounded-lg shadow-lg"
+                    whileHover={{ scale: isSaving ? 1 : 1.02 }}
+                    whileTap={{ scale: isSaving ? 1 : 0.98 }}
+                    disabled={isSaving}
+                    className="flex-1 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-semibold rounded-lg shadow-lg disabled:opacity-60 flex items-center justify-center gap-2"
                   >
-                    Save Changes
+                    {isSaving ? (
+                      <>
+                        <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                        </svg>
+                        Saving...
+                      </>
+                    ) : (
+                      'Save Changes'
+                    )}
                   </motion.button>
                 </div>
               </form>

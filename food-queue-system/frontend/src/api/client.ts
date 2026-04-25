@@ -1,3 +1,5 @@
+
+
 const BASE_URL = "https://skiptheline-g8dy.onrender.com";
 
 const getToken = () => localStorage.getItem("token");
@@ -7,7 +9,6 @@ const authHeaders = () => ({
   "Authorization": `Bearer ${getToken()}`,
 });
 
-// Returns the parsed JSON whether ok or not — callers check res.detail for errors
 const handleResponse = async (response: Response) => {
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -37,7 +38,25 @@ export const api = {
       body: JSON.stringify(data),
     }).then(handleResponse),
 
+  // ✅ NEW: Verifies the stored JWT is still valid and returns fresh user data.
+  // Called by AppContext on every page load to re-hydrate the session from the
+  // server instead of blindly trusting whatever is in localStorage.
+  getMe: () =>
+    fetch(`${BASE_URL}/auth/me`, {
+      headers: authHeaders(),
+    }).then(handleResponse),
+
+  // ✅ NEW: Persists profile edits (name, email, phone) to the DB.
+  // Profile.tsx was previously only updating localStorage — changes were lost on refresh.
+  updateMe: (data: { name?: string; email?: string; phone?: string }) =>
+    fetch(`${BASE_URL}/auth/me`, {
+      method: "PUT",
+      headers: authHeaders(),
+      body: JSON.stringify(data),
+    }).then(handleResponse),
+
   // ── Account ─────────────────────────────────────
+  // ✅ This already existed in client.ts — now the backend endpoint exists too.
   deleteAccount: () =>
     fetch(`${BASE_URL}/auth/delete`, {
       method: "DELETE",
