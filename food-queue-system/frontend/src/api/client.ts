@@ -1,5 +1,3 @@
-
-
 const BASE_URL = "https://skiptheline-g8dy.onrender.com";
 
 const getToken = () => localStorage.getItem("token");
@@ -24,6 +22,7 @@ const handleResponse = async (response: Response) => {
 };
 
 export const api = {
+  // ── Auth ────────────────────────────────────────
   register: (data: object) =>
     fetch(`${BASE_URL}/auth/register`, {
       method: "POST",
@@ -38,16 +37,13 @@ export const api = {
       body: JSON.stringify(data),
     }).then(handleResponse),
 
-  // ✅ NEW: Verifies the stored JWT is still valid and returns fresh user data.
-  // Called by AppContext on every page load to re-hydrate the session from the
-  // server instead of blindly trusting whatever is in localStorage.
+  // Verifies stored token and returns fresh user data from DB
   getMe: () =>
     fetch(`${BASE_URL}/auth/me`, {
       headers: authHeaders(),
     }).then(handleResponse),
 
-  // ✅ NEW: Persists profile edits (name, email, phone) to the DB.
-  // Profile.tsx was previously only updating localStorage — changes were lost on refresh.
+  // Persists profile edits (name/email/phone) to the DB
   updateMe: (data: { name?: string; email?: string; phone?: string }) =>
     fetch(`${BASE_URL}/auth/me`, {
       method: "PUT",
@@ -55,8 +51,6 @@ export const api = {
       body: JSON.stringify(data),
     }).then(handleResponse),
 
-  // ── Account ─────────────────────────────────────
-  // ✅ This already existed in client.ts — now the backend endpoint exists too.
   deleteAccount: () =>
     fetch(`${BASE_URL}/auth/delete`, {
       method: "DELETE",
@@ -107,6 +101,14 @@ export const api = {
       body: JSON.stringify(data),
     }).then(handleResponse),
 
+  // ✅ NEW: Toggle availability without sending the full item body
+  toggleAvailability: (itemId: number, isAvailable: boolean) =>
+    fetch(`${BASE_URL}/menu/${itemId}/availability`, {
+      method: "PATCH",
+      headers: authHeaders(),
+      body: JSON.stringify({ is_available: isAvailable }),
+    }).then(handleResponse),
+
   deleteMenuItem: (itemId: number) =>
     fetch(`${BASE_URL}/menu/${itemId}`, {
       method: "DELETE",
@@ -131,10 +133,13 @@ export const api = {
       headers: authHeaders(),
     }).then(handleResponse),
 
-  vendorOrders: () =>
-    fetch(`${BASE_URL}/orders`, {
-      headers: authHeaders(),
-    }).then(handleResponse),
+  // ✅ UPDATED: optional status filter — pass undefined for all orders,
+  // or a status string to fetch only that status from the DB
+  vendorOrders: (status?: string) =>
+    fetch(
+      `${BASE_URL}/orders${status ? `?status=${status}` : ""}`,
+      { headers: authHeaders() }
+    ).then(handleResponse),
 
   updateOrderStatus: (orderId: number, status: string) =>
     fetch(`${BASE_URL}/orders/${orderId}/status`, {
@@ -151,4 +156,9 @@ export const api = {
     fetch(`${BASE_URL}/queue/position/${orderId}`, {
       headers: authHeaders(),
     }).then(handleResponse),
+
+  // ✅ NEW: Returns the SSE stream URL — callers pass this to new EventSource(url)
+  // Not a fetch call — EventSource handles the connection itself
+  getQueueStreamUrl: (stallId: number) =>
+    `${BASE_URL}/queue/${stallId}/stream`,
 };

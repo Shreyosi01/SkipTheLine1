@@ -65,6 +65,9 @@ interface AppContextType {
   cart: CartItem[];
   orders: Order[];
   isLoading: boolean;
+  // ✅ FRIEND: true while the app is doing its very first load (stalls + session
+  //    restore). Use this in App.tsx to show a splash screen instead of a flash
+  //    of unauthenticated UI before the token is verified.
   isInitializing: boolean;
   stalls: Stall[];
   createStall: (name: string, items: StallItem[], category?: string) => Promise<void>;
@@ -88,11 +91,10 @@ interface AppContextType {
   ) => Promise<void>;
   logoutUser: () => void;
   deleteUser: () => Promise<void>;
+  updateProfile: (data: { name?: string; email?: string; phone?: string; avatar?: string }) => Promise<void>;
   fetchMyOrders: () => Promise<void>;
   fetchVendorOrders: () => Promise<void>;
   fetchStalls: () => Promise<Stall[]>;
-  // ✅ UPDATED: Added updateProfile to the context interface
-  updateProfile: (updatedData: { name?: string; email?: string; phone?: string; avatar?: string }) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -120,64 +122,54 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [orders, setOrders] = useState<Order[]>([]);
   const [stalls, setStalls] = useState<Stall[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  // ✅ FRIEND: starts true, flips to false once stalls + session are ready
   const [isInitializing, setIsInitializing] = useState(true);
 
   const stallsRef = React.useRef<Stall[]>([]);
   useEffect(() => { stallsRef.current = stalls; }, [stalls]);
 
   useEffect(() => {
+    // ✅ FIX: friend's version ran initApp() AND the old localStorage block
+    //    in parallel — causing double stall fetches and a race condition where
+    //    restoreSession (which calls /auth/me) and the old localStorage read
+    //    both tried to set user state simultaneously.
+    //    Correct approach: one single async init, nothing else in this effect.
     const initApp = async () => {
       try {
+        // Run stall fetch and session restore concurrently — neither depends on the other
         await Promise.all([fetchStalls(), restoreSession()]);
       } finally {
+        // Always flip isInitializing off, even if something throws
         setIsInitializing(false);
       }
     };
     initApp();
-    fetchStalls();
-    const savedUser = localStorage.getItem('user');
-    const savedToken = localStorage.getItem('token');
-    if (savedUser && savedToken) {
-      try {
-        const parsed = JSON.parse(savedUser);
-        setUserState(parsed);
-        setUserMode(parsed.mode);
-        if (parsed.mode === 'vendor') {
-          api.vendorOrders()
-            .then(res => { if (Array.isArray(res)) mapAndSetOrders(res); })
-            .catch(err => console.error('Auto-fetch vendor orders failed:', err));
-        } else {
-          api.myOrders()
-            .then(res => { if (Array.isArray(res)) mapAndSetOrders(res); })
-            .catch(err => console.error('Auto-fetch orders failed:', err));
-        }
-      } catch (e) {
-        console.error('Failed to parse saved user', e);
-      }
-    }
   }, []);
+
+  // ✅ MY ADDITION: Verifies the stored JWT against the server via GET /auth/me.
+  // Friend's version had this too but missed restoring stallId from the server
+  // response — vendors would land on /vendor/stall (create stall) instead of
+  // /vendor (dashboard) after a page refresh even if they already had a stall.
   const restoreSession = async () => {
     const savedToken = localStorage.getItem('token');
     const savedUser = localStorage.getItem('user');
     if (!savedToken || !savedUser) return;
 
     try {
-      // Verify token and get fresh user data from the server
       const freshUser = await api.getMe();
 
-      // Merge server data with locally stored avatar (not persisted in DB)
+      // Avatar lives in localStorage only — backend doesn't store it
       let localAvatar: string | undefined;
-      try {
-        localAvatar = JSON.parse(savedUser)?.avatar;
-      } catch {
-        localAvatar = undefined;
-      }
+      try { localAvatar = JSON.parse(savedUser)?.avatar; } catch { /* ignore */ }
 
       const u: User = {
         id: String(freshUser.id),
         name: freshUser.name,
         email: freshUser.email,
         mode: freshUser.role as UserMode,
+        // ✅ FIX: friend's version omitted this — vendors lost their stallId
+        //    on page refresh, causing wrong post-login navigation
+        stallId: freshUser.stall_id != null ? String(freshUser.stall_id) : undefined,
         phone: freshUser.phone,
         avatar: localAvatar,
       };
@@ -186,14 +178,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.setItem('user', JSON.stringify(u));
 
       // Fetch orders in background — don't block session restore
-      api.myOrders()
-        .then(res => { if (Array.isArray(res)) mapAndSetOrders(res); })
-        .catch(err => console.error('Auto-fetch orders failed:', err));
-
+      if (u.mode === 'vendor') {
+        api.vendorOrders()
+          .then(res => { if (Array.isArray(res)) mapAndSetOrders(res); })
+          .catch(err => console.error('Auto-fetch vendor orders failed:', err));
+      } else {
+        api.myOrders()
+          .then(res => { if (Array.isArray(res)) mapAndSetOrders(res); })
+          .catch(err => console.error('Auto-fetch orders failed:', err));
+      }
     } catch (err) {
-      // Token is expired or invalid — clear everything so the user gets the
-      // login page instead of a broken authenticated state
-      console.warn('Session restore failed — clearing local session:', err);
+      // Token expired or revoked — clear so user gets login page
+      console.warn('Session restore failed — clearing:', err);
       localStorage.removeItem('user');
       localStorage.removeItem('token');
     }
@@ -236,26 +232,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  // ✅ UPDATED: Implementation for updateProfile syncing with backend & local state
-  const updateProfile = async (updatedData: { name?: string; email?: string; phone?: string; avatar?: string }) => {
+  // ✅ MERGED: updateProfile from friend's version, with one critical fix.
+  //    Friend's version passed avatar to api.updateMe() — but the backend's
+  //    PUT /auth/me only accepts name/email/phone. Sending avatar would either
+  //    be silently ignored or cause a validation error depending on the schema.
+  //    Fix: strip avatar before the API call, apply it locally only (same as
+  //    how the rest of the app treats avatar — client-side only, no DB storage).
+  const updateProfile = async (data: { name?: string; email?: string; phone?: string; avatar?: string }) => {
     if (!user) return;
     try {
-      await api.updateMe({
-        name: updatedData.name,
-        email: updatedData.email,
-        phone: updatedData.phone,
-        avatar: updatedData.avatar,
-      });
-
-      const updatedUser = {
-        ...user,
-        ...updatedData,
-      };
-      
-      // using setUser correctly syncs localStorage and updates the vendor stall image if needed
-      setUser(updatedUser); 
+      const { avatar, ...serverFields } = data;
+      // Only send fields the backend knows about
+      await api.updateMe(serverFields);
+      // Merge server fields + avatar into current user and persist
+      setUser({ ...user, ...data });
     } catch (error) {
-      console.error("Failed to update profile:", error);
+      console.error('Failed to update profile:', error);
       throw error;
     }
   };
@@ -303,11 +295,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setUserMode(u.mode);
 
       if (u.mode === 'vendor') {
-        const [freshStalls] = await Promise.all([
-          fetchStalls(),
-          fetchVendorOrders(),
-        ]);
-
+        const [freshStalls] = await Promise.all([fetchStalls(), fetchVendorOrders()]);
+        // Fallback: backend didn't send stall_id, resolve from stalls list
         if (!u.stallId) {
           const vendorStall = freshStalls.find(s => s.vendorId === u.id);
           if (vendorStall) {
@@ -423,8 +412,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           })
         )
       );
-      const updatedUser = { ...user, stallId: String(stallId) };
-      setUser(updatedUser);
+      setUser({ ...user, stallId: String(stallId) });
       await fetchStalls();
     } catch (e: any) {
       console.error('Failed to create stall', e);
@@ -479,10 +467,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       user, userMode, cart, orders, isLoading, isInitializing, stalls,
       setUser, setUserMode, addToCart, removeFromCart, clearCart,
       addOrder, updateOrderStatus, loginUser, registerUser,
-      logoutUser, deleteUser,
+      logoutUser, deleteUser, updateProfile,
       fetchMyOrders, fetchVendorOrders, fetchStalls,
       createStall, updateStall, getVendorStall,
-      updateProfile, // ✅ UPDATED: Exported here so Profile.tsx can use it
     }}>
       {children}
     </AppContext.Provider>
