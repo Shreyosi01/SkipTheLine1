@@ -8,24 +8,18 @@ class RegisterRequest(BaseModel):
     email: str
     password: str
     phone: Optional[str] = None
-    role: str  # validated in router to "customer" | "vendor"
+    role: str
 
 class LoginRequest(BaseModel):
     email: str
     password: str
 
-# ✅ NEW: Proper typed schema for the user object.
-# Previously TokenResponse.user was typed as `dict`, losing all validation.
-# Now GET /auth/me and PUT /auth/me both return this clean shape,
-# which matches exactly what AppContext.User expects.
 class UserResponse(BaseModel):
     id: int
     name: str
     email: str
     phone: Optional[str] = None
     role: str
-    # avatar is not stored in DB yet — always None from the server.
-    # The frontend manages avatar choice locally in localStorage.
     avatar: Optional[str] = None
 
     class Config:
@@ -34,9 +28,8 @@ class UserResponse(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str
-    user: dict  # kept as dict so login/register keep working without changes
+    user: dict
 
-# ✅ NEW: For PUT /auth/me — all fields optional so caller can patch only what changed.
 class UpdateProfileRequest(BaseModel):
     name: Optional[str] = None
     email: Optional[str] = None
@@ -80,6 +73,12 @@ class MenuItemResponse(BaseModel):
     class Config:
         from_attributes = True
 
+# ✅ NEW: Used by PATCH /menu/{item_id}/availability
+# Single-field update — vendor sends just { "is_available": false }
+# without re-sending name/price/description.
+class AvailabilityUpdate(BaseModel):
+    is_available: bool
+
 
 # ── Orders ────────────────────────────────────────
 class OrderItemIn(BaseModel):
@@ -90,11 +89,6 @@ class OrderCreate(BaseModel):
     stall_id: int
     items: List[OrderItemIn]
 
-# ✅ UPDATED: Status transition validation lives here via a Pydantic validator.
-# This means ANY endpoint that accepts OrderStatusUpdate gets the guard for free —
-# no need to repeat the check in every router function.
-# The allowed flow matches VendorOrders.tsx exactly:
-#   placed → preparing → ready → completed
 ALLOWED_STATUSES = {"placed", "preparing", "ready", "completed"}
 
 class OrderStatusUpdate(BaseModel):
