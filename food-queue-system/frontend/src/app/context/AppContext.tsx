@@ -65,9 +65,6 @@ interface AppContextType {
   cart: CartItem[];
   orders: Order[];
   isLoading: boolean;
-  // ✅ FRIEND: true while the app is doing its very first load (stalls + session
-  //    restore). Use this in App.tsx to show a splash screen instead of a flash
-  //    of unauthenticated UI before the token is verified.
   isInitializing: boolean;
   stalls: Stall[];
   createStall: (name: string, items: StallItem[], category?: string) => Promise<void>;
@@ -99,6 +96,29 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
+// ─── Vendor avatar persistence ─────────────────────────────────────────────
+// The backend doesn't reliably return avatar/image_url on stall objects, so
+// we maintain a localStorage map of vendorId → avatarUrl that gets merged
+// back into every fetchStalls() call. This is the single source of truth for
+// stall images on the client side.
+const VENDOR_AVATARS_KEY = 'vendorAvatars';
+
+const getStoredVendorAvatars = (): Record<string, string> => {
+  try {
+    return JSON.parse(localStorage.getItem(VENDOR_AVATARS_KEY) || '{}');
+  } catch {
+    return {};
+  }
+};
+
+const persistVendorAvatar = (vendorId: string, avatar: string) => {
+  if (!avatar) return;
+  const map = getStoredVendorAvatars();
+  map[vendorId] = avatar;
+  localStorage.setItem(VENDOR_AVATARS_KEY, JSON.stringify(map));
+};
+// ───────────────────────────────────────────────────────────────────────────
+
 const mapStall = (s: any, menuItems?: any[]): Stall => ({
   id: String(s.id),
   vendorId: String(s.owner_id),
@@ -112,7 +132,8 @@ const mapStall = (s: any, menuItems?: any[]): Stall => ({
   })),
   updatedAt: s.updated_at || new Date().toISOString(),
   status: 'new' as const,
-  image: s.avatar || s.image_url,
+  // API value if present; localStorage overlay is merged in fetchStalls()
+  image: s.avatar || s.image_url || undefined,
 });
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -122,34 +143,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [orders, setOrders] = useState<Order[]>([]);
   const [stalls, setStalls] = useState<Stall[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  // ✅ FRIEND: starts true, flips to false once stalls + session are ready
   const [isInitializing, setIsInitializing] = useState(true);
 
   const stallsRef = React.useRef<Stall[]>([]);
   useEffect(() => { stallsRef.current = stalls; }, [stalls]);
 
   useEffect(() => {
-    // ✅ FIX: friend's version ran initApp() AND the old localStorage block
-    //    in parallel — causing double stall fetches and a race condition where
-    //    restoreSession (which calls /auth/me) and the old localStorage read
-    //    both tried to set user state simultaneously.
-    //    Correct approach: one single async init, nothing else in this effect.
     const initApp = async () => {
       try {
-        // Run stall fetch and session restore concurrently — neither depends on the other
+        // Run concurrently — neither depends on the other
         await Promise.all([fetchStalls(), restoreSession()]);
       } finally {
-        // Always flip isInitializing off, even if something throws
         setIsInitializing(false);
       }
     };
     initApp();
   }, []);
 
-  // ✅ MY ADDITION: Verifies the stored JWT against the server via GET /auth/me.
-  // Friend's version had this too but missed restoring stallId from the server
-  // response — vendors would land on /vendor/stall (create stall) instead of
-  // /vendor (dashboard) after a page refresh even if they already had a stall.
   const restoreSession = async () => {
     const savedToken = localStorage.getItem('token');
     const savedUser = localStorage.getItem('user');
@@ -167,17 +177,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         name: freshUser.name,
         email: freshUser.email,
         mode: freshUser.role as UserMode,
-        // ✅ FIX: friend's version omitted this — vendors lost their stallId
-        //    on page refresh, causing wrong post-login navigation
         stallId: freshUser.stall_id != null ? String(freshUser.stall_id) : undefined,
         phone: freshUser.phone,
         avatar: localAvatar,
       };
+
+      // ✅ If this vendor has a locally stored avatar, make sure it's in the
+      // avatars map so the next fetchStalls() call picks it up correctly
+      if (u.mode === 'vendor' && u.avatar) {
+        persistVendorAvatar(u.id, u.avatar);
+      }
+
       setUserState(u);
       setUserMode(u.mode);
       localStorage.setItem('user', JSON.stringify(u));
 
-      // Fetch orders in background — don't block session restore
       if (u.mode === 'vendor') {
         api.vendorOrders()
           .then(res => { if (Array.isArray(res)) mapAndSetOrders(res); })
@@ -188,27 +202,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           .catch(err => console.error('Auto-fetch orders failed:', err));
       }
     } catch (err) {
-      // Token expired or revoked — clear so user gets login page
       console.warn('Session restore failed — clearing:', err);
       localStorage.removeItem('user');
       localStorage.removeItem('token');
     }
   };
 
+  // ✅ KEY FIX: after mapping API data, overlay locally-stored avatars so
+  // re-fetches never wipe vendor images that the backend doesn't return.
   const fetchStalls = async (): Promise<Stall[]> => {
     try {
       const res = await api.listStalls();
       if (!Array.isArray(res)) return [];
+
+      const vendorAvatars = getStoredVendorAvatars();
+
       const stallsWithMenus = await Promise.all(
         res.map(async (s: any) => {
           try {
             const menu = await api.getMenu(s.id);
-            return mapStall(s, Array.isArray(menu) ? menu : []);
+            const stall = mapStall(s, Array.isArray(menu) ? menu : []);
+            // API image takes priority; fall back to locally-stored avatar
+            const localAvatar = vendorAvatars[String(s.owner_id)];
+            return { ...stall, image: stall.image || localAvatar || undefined };
           } catch {
-            return mapStall(s, []);
+            const stall = mapStall(s, []);
+            const localAvatar = vendorAvatars[String(s.owner_id)];
+            return { ...stall, image: stall.image || localAvatar || undefined };
           }
         })
       );
+
       setStalls(stallsWithMenus);
       return stallsWithMenus;
     } catch (e) {
@@ -222,8 +246,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (u) {
       localStorage.setItem('user', JSON.stringify(u));
       if (u.mode === 'vendor' && u.avatar) {
+        // ✅ Persist to map AND patch stall list immediately so UI updates
+        // without waiting for the next fetchStalls() call
+        persistVendorAvatar(u.id, u.avatar);
         setStalls(prev =>
-          prev.map(stall => stall.vendorId === u.id ? { ...stall, image: u.avatar } : stall)
+          prev.map(stall =>
+            stall.vendorId === u.id ? { ...stall, image: u.avatar } : stall
+          )
         );
       }
     } else {
@@ -232,19 +261,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  // ✅ MERGED: updateProfile from friend's version, with one critical fix.
-  //    Friend's version passed avatar to api.updateMe() — but the backend's
-  //    PUT /auth/me only accepts name/email/phone. Sending avatar would either
-  //    be silently ignored or cause a validation error depending on the schema.
-  //    Fix: strip avatar before the API call, apply it locally only (same as
-  //    how the rest of the app treats avatar — client-side only, no DB storage).
+  // ✅ Strips avatar before sending to backend (PUT /auth/me only accepts
+  // name/email/phone), then applies avatar locally via setUser which persists
+  // it to the vendorAvatars map and patches the stalls list immediately.
   const updateProfile = async (data: { name?: string; email?: string; phone?: string; avatar?: string }) => {
     if (!user) return;
     try {
       const { avatar, ...serverFields } = data;
-      // Only send fields the backend knows about
       await api.updateMe(serverFields);
-      // Merge server fields + avatar into current user and persist
+      // setUser handles avatar persistence + stall image update in one shot
       setUser({ ...user, ...data });
     } catch (error) {
       console.error('Failed to update profile:', error);
@@ -296,7 +321,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       if (u.mode === 'vendor') {
         const [freshStalls] = await Promise.all([fetchStalls(), fetchVendorOrders()]);
-        // Fallback: backend didn't send stall_id, resolve from stalls list
         if (!u.stallId) {
           const vendorStall = freshStalls.find(s => s.vendorId === u.id);
           if (vendorStall) {
@@ -399,7 +423,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const createStall = async (name: string, items: StallItem[], category = 'snacks') => {
     if (!user) return;
     try {
-      const res = await api.createStall({ name, category, avatar: user.avatar });
+      // ✅ Pull from avatars map as fallback in case user.avatar isn't set yet
+      const vendorAvatars = getStoredVendorAvatars();
+      const avatar = user.avatar || vendorAvatars[user.id];
+      const res = await api.createStall({ name, category, avatar });
       const stallId = res.id;
       await Promise.all(
         items.map(item =>
@@ -423,7 +450,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateStall = async (id: string, name: string, items: StallItem[], category = 'snacks') => {
     if (!user) return;
     try {
-      await api.updateStall(parseInt(id), { name, category, avatar: user.avatar });
+      // ✅ Pull from avatars map so image survives even if user.avatar is stale
+      const vendorAvatars = getStoredVendorAvatars();
+      const avatar = user.avatar || vendorAvatars[user.id];
+      await api.updateStall(parseInt(id), { name, category, avatar });
+
       const currentMenu: any[] = await api.getMenu(parseInt(id)).catch(() => []);
       const currentIds = new Set(currentMenu.map((i: any) => String(i.id)));
       const incomingExistingIds = new Set(
