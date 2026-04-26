@@ -1,6 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 import random
 from database import get_db
 from auth import get_current_user
@@ -83,8 +83,24 @@ def my_orders(db: Session = Depends(get_db), current_user=Depends(get_current_us
     ).order_by(models.Order.created_at.desc()).all()
 
 
+# ✅ UPDATED: optional ?status= query param filter.
+# VendorOrders.tsx has filter tabs (all/placed/preparing/ready) but previously
+# filtered entirely in the frontend against stale in-memory data. With this param,
+# the "placed" tab fetches only placed orders directly from the DB — always fresh.
+#
+# Usage:
+#   GET /orders              → all vendor orders (unchanged behaviour)
+#   GET /orders?status=placed     → placed only
+#   GET /orders?status=preparing  → preparing only
 @router.get("", response_model=List[schemas.OrderResponse])
-def vendor_orders(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+def vendor_orders(
+    status: Optional[str] = Query(
+        None,
+        description="Filter by status: placed | preparing | ready | completed"
+    ),
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
     if current_user.role != "vendor":
         raise HTTPException(status_code=403, detail="Vendors only")
 
@@ -92,9 +108,18 @@ def vendor_orders(db: Session = Depends(get_db), current_user=Depends(get_curren
     if not stall:
         raise HTTPException(status_code=404, detail="Vendor must create a stall first")
 
-    return db.query(models.Order).filter(
-        models.Order.stall_id == stall.id
-    ).order_by(models.Order.created_at.desc()).all()
+    query = db.query(models.Order).filter(models.Order.stall_id == stall.id)
+
+    if status:
+        allowed = {"placed", "preparing", "ready", "completed"}
+        if status not in allowed:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid status '{status}'. Must be one of: {', '.join(sorted(allowed))}"
+            )
+        query = query.filter(models.Order.status == status)
+
+    return query.order_by(models.Order.created_at.desc()).all()
 
 
 @router.get("/{order_id}", response_model=schemas.OrderResponse)
@@ -121,10 +146,7 @@ def update_status(order_id: int, data: schemas.OrderStatusUpdate,
     if not stall or order.stall_id != stall.id:
         raise HTTPException(status_code=403, detail="This order does not belong to your stall")
 
-    # ✅ Forward-only transition enforcement.
-    # STATUS_FLOW maps each status to the only valid next status.
-    # This mirrors getNextStatus() in VendorOrders.tsx exactly so the backend
-    # and frontend always agree on what transitions are legal.
+    # ✅ Forward-only transition enforcement
     expected_next = STATUS_FLOW.get(order.status)
     if expected_next is None:
         raise HTTPException(
