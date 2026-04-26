@@ -4,6 +4,7 @@ import { motion } from 'motion/react';
 import { ArrowLeft, Plus, Store } from 'lucide-react';
 import { QueueMeter } from '../components/QueueMeter';
 import { useApp } from '../context/AppContext';
+import { useQueueStream } from '../../hooks/useQueueStream';
 import { toast } from 'sonner';
 
 export const StallDetail: React.FC = () => {
@@ -12,6 +13,11 @@ export const StallDetail: React.FC = () => {
   const { addToCart, stalls } = useApp();
 
   const stall = stalls.find((s) => String(s.id) === String(id));
+
+  // ✅ SSE: Live queue data for this stall.
+  // Passed straight to QueueMeter — replaces the old hardcoded queueLength={0}.
+  // useQueueStream returns null data while connecting, so we default to 0.
+  const { data: queueData, connectionMode, loading: queueLoading } = useQueueStream(id);
 
   if (!stall) {
     return (
@@ -138,14 +144,20 @@ export const StallDetail: React.FC = () => {
             )}
           </div>
 
-          {/* Queue Meter Sidebar */}
+          {/* Queue Meter Sidebar — now wired to live SSE data */}
           <motion.div
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.3 }}
             className="lg:sticky lg:top-24 h-fit"
           >
-            <QueueMeter queueLength={0} estimatedWait="~15" />
+            {/* ✅ FIXED: was queueLength={0} estimatedWait="~15" (hardcoded + wrong type).
+                Now receives live data from SSE stream via useQueueStream. */}
+            <QueueMeter
+              queueLength={queueData?.queue_length ?? 0}
+              estimatedWait={queueData?.estimated_wait_minutes ?? 0}
+              connectionMode={queueLoading ? 'idle' : connectionMode}
+            />
           </motion.div>
         </div>
       </div>
