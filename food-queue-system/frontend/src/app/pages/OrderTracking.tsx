@@ -1,25 +1,42 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import { motion } from 'motion/react';
-import { ArrowLeft, Clock, ChefHat, Package, CheckCircle, Loader2 } from 'lucide-react';
+import { ArrowLeft, Clock, ChefHat, Package, CheckCircle, Loader2, Wifi, WifiOff } from 'lucide-react';
 import { useApp, Order } from '../context/AppContext';
 import { StatusBadge } from '../components/StatusBadge';
 import { api } from '../../api/client';
+import { useQueueStream } from '../../hooks/useQueueStream';
 
 export const OrderTracking: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { orders, stalls, fetchMyOrders } = useApp();
+  const { orders, stalls, fetchMyOrders, updateOrderStatus } = useApp();
 
   const [fetchedOrder, setFetchedOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [progress, setProgress] = useState(0);
 
-  // Always try context first (covers fresh checkout navigation)
   const contextOrder = orders.find((o) => o.id === id);
   const order = contextOrder || fetchedOrder;
 
+  // ✅ SSE: Connect to live queue stream for this order's stall.
+  // stallId is only known once we have the order, so we pass it conditionally.
+  // useQueueStream handles null gracefully (returns loading=true, data=null).
+  const { data: queueData, connectionMode } = useQueueStream(order?.stallId);
+
+  // Derive live position from SSE queue data.
+  // This replaces the old local-context calculation which was wrong —
+  // context only contains the current customer's orders, not all stall orders.
+  const livePosition = queueData
+    ? queueData.orders.findIndex(o => o.token === order?.token) + 1
+    : 0;
+  const queuePosition = livePosition > 0 ? livePosition : 1;
+  const estimatedWait = queueData
+    ? (queuePosition - 1) * 5
+    : order?.estimatedTime ?? 15;
+
+  // ✅ TEAMMATE: fetches fresh orders on mount then falls back to direct API call.
   useEffect(() => {
     if (!id) return;
 
@@ -27,20 +44,11 @@ export const OrderTracking: React.FC = () => {
       setLoading(true);
       setNotFound(false);
 
-      // 1. Refresh orders from backend so context is up to date
-      try {
-        await fetchMyOrders();
-      } catch {
-        // non-fatal — we'll try direct API call below
-      }
+      try { await fetchMyOrders(); } catch { /* non-fatal */ }
 
-      // 2. Check context again after refresh
-      //    (contextOrder will re-evaluate on next render via the selector above)
-      // 3. If still not in context, fetch directly by ID
       try {
         const res = await api.getOrder(parseInt(id));
-        const stallName =
-          stalls.find((s) => s.id === String(res.stall_id))?.stallName || 'Stall';
+        const stallName = stalls.find((s) => s.id === String(res.stall_id))?.stallName || 'Stall';
         const mapped: Order = {
           id: String(res.id),
           stallId: String(res.stall_id),
@@ -59,7 +67,6 @@ export const OrderTracking: React.FC = () => {
         };
         setFetchedOrder(mapped);
       } catch {
-        // Only mark not-found if context also has nothing
         setNotFound(true);
       } finally {
         setLoading(false);
@@ -70,28 +77,31 @@ export const OrderTracking: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  // Update progress bar whenever order status changes
+  // ✅ SSE: When live queue data arrives, sync order status into context
+  // if it has changed server-side. This is what makes the timeline update
+  // without the customer needing to refresh.
+  useEffect(() => {
+    if (!queueData || !order) return;
+    const liveOrder = queueData.orders.find(o => o.token === order.token);
+    if (liveOrder && liveOrder.status !== order.status) {
+      // Update context so the timeline re-renders
+      updateOrderStatus(order.id, liveOrder.status as any);
+      // Also update fetchedOrder if that's what we're rendering
+      setFetchedOrder(prev =>
+        prev ? { ...prev, status: liveOrder.status as any } : prev
+      );
+    }
+  }, [queueData]);
+
+  // Progress bar driven by order status
   useEffect(() => {
     if (!order) return;
     const progressMap: Record<string, number> = {
-      placed: 25,
-      preparing: 50,
-      ready: 75,
-      completed: 100,
+      placed: 25, preparing: 50, ready: 75, completed: 100,
     };
     setProgress(progressMap[order.status] ?? 25);
-  }, [order]);
+  }, [order?.status]);
 
-  const queuePosition = order
-    ? orders.filter(
-        (o) =>
-          o.stallId === order.stallId &&
-          o.status !== 'completed' &&
-          new Date(o.timestamp) <= new Date(order.timestamp)
-      ).length || 1
-    : 0;
-
-  // ── Loading state ─────────────────────────────────────────────────────────
   if (loading) {
     return (
       <div className="min-h-screen bg-white dark:bg-gray-900 pt-20 flex items-center justify-center">
@@ -103,7 +113,6 @@ export const OrderTracking: React.FC = () => {
     );
   }
 
-  // ── Not found (only after loading + context check both fail) ─────────────
   if (notFound && !order) {
     return (
       <div className="min-h-screen bg-white dark:bg-gray-900 pt-20 flex items-center justify-center transition-colors duration-200">
@@ -123,10 +132,10 @@ export const OrderTracking: React.FC = () => {
   if (!order) return null;
 
   const steps = [
-    { status: 'placed',    icon: Clock,         label: 'Order Placed', time: '0 min' },
-    { status: 'preparing', icon: ChefHat,        label: 'Preparing',   time: '5 min' },
-    { status: 'ready',     icon: Package,        label: 'Ready',       time: '15 min' },
-    { status: 'completed', icon: CheckCircle,    label: 'Completed',   time: '' },
+    { status: 'placed',    icon: Clock,       label: 'Order Placed', time: '0 min' },
+    { status: 'preparing', icon: ChefHat,      label: 'Preparing',   time: '5 min' },
+    { status: 'ready',     icon: Package,      label: 'Ready',       time: '15 min' },
+    { status: 'completed', icon: CheckCircle,  label: 'Completed',   time: '' },
   ];
 
   const currentStepIndex = steps.findIndex((s) => s.status === order.status);
@@ -161,6 +170,31 @@ export const OrderTracking: React.FC = () => {
           </motion.div>
           <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-2">Track Your Order</h1>
           <p className="text-gray-600 dark:text-gray-400">{order.stallName}</p>
+
+          {/* ✅ SSE connection indicator */}
+          <div className="flex items-center justify-center gap-2 mt-2">
+            {connectionMode === 'sse' && (
+              <span className="flex items-center gap-1.5 text-xs text-green-600 dark:text-green-400">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+                </span>
+                Live updates active
+              </span>
+            )}
+            {connectionMode === 'polling' && (
+              <span className="flex items-center gap-1.5 text-xs text-yellow-600 dark:text-yellow-400">
+                <Wifi className="w-3 h-3" />
+                Updating every 5s
+              </span>
+            )}
+            {connectionMode === 'idle' && order.status !== 'completed' && (
+              <span className="flex items-center gap-1.5 text-xs text-gray-400">
+                <WifiOff className="w-3 h-3" />
+                Connecting…
+              </span>
+            )}
+          </div>
         </motion.div>
 
         {/* Status Badge */}
@@ -177,9 +211,8 @@ export const OrderTracking: React.FC = () => {
         >
           <div className="relative h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
             <motion.div
-              initial={{ width: 0 }}
               animate={{ width: `${progress}%` }}
-              transition={{ duration: 1, ease: 'easeOut' }}
+              transition={{ duration: 0.8, ease: 'easeOut' }}
               className="h-full bg-gradient-to-r from-blue-500 to-cyan-500"
             />
           </div>
@@ -288,8 +321,9 @@ export const OrderTracking: React.FC = () => {
               <div className="text-center">
                 <p className="text-gray-600 dark:text-gray-400 text-sm mb-2">Your Position</p>
                 <motion.div
+                  key={queuePosition}
                   animate={{ scale: [1, 1.1, 1] }}
-                  transition={{ duration: 2, repeat: Infinity }}
+                  transition={{ duration: 0.4 }}
                   className="w-20 h-20 mx-auto rounded-full bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center"
                 >
                   <span className="text-3xl font-bold text-white">#{queuePosition}</span>
@@ -299,11 +333,12 @@ export const OrderTracking: React.FC = () => {
               <div className="text-center">
                 <p className="text-gray-600 dark:text-gray-400 text-sm mb-2">Est. Wait Time</p>
                 <motion.p
+                  key={estimatedWait}
                   animate={{ scale: [1, 1.05, 1] }}
-                  transition={{ duration: 2, repeat: Infinity }}
+                  transition={{ duration: 0.4 }}
                   className="text-4xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent"
                 >
-                  {order.estimatedTime}m
+                  {estimatedWait}m
                 </motion.p>
               </div>
             </div>
