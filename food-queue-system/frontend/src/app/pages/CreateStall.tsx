@@ -1,337 +1,514 @@
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import {
-  Store,
-  Plus,
-  Trash2,
-  ChevronRight,
-  IndianRupee,
-  FileText,
-  Tag,
-  Sparkles,
-  ArrowLeft,
-  CheckCircle2,
-  Edit3,
-} from 'lucide-react';
-import { useApp, StallItem } from '../context/AppContext';
-import { useNavigate } from 'react-router';
-import { toast } from 'sonner';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { api } from '../../api/client';
 
-const generateId = () => `item_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+export type UserMode = 'customer' | 'vendor';
+export type OrderStatus = 'placed' | 'preparing' | 'ready' | 'completed';
 
-const emptyItem = (): StallItem => ({
-  id: generateId(),
-  name: '',
-  price: 0,
-  description: '',
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  mode: UserMode;
+  stallId?: string;
+  phone?: string;
+  avatar?: string;
+}
+
+export interface CartItem {
+  id: string;
+  stallId: string;
+  name: string;
+  price: number;
+  quantity: number;
+}
+
+export interface OrderItem {
+  id: string;
+  name: string;
+  price: number;
+  quantity: number;
+}
+
+export interface StallItem {
+  id: string;
+  name: string;
+  price: number;
+  description?: string;
+}
+
+export interface Stall {
+  id: string;
+  vendorId: string;
+  stallName: string;
+  items: StallItem[];
+  updatedAt: string;
+  status: 'new' | 'updated';
+  image?: string;
+  category?: string;
+}
+
+export interface Order {
+  id: string;
+  stallId: string;
+  stallName: string;
+  items: OrderItem[];
+  total: number;
+  token: string;
+  status: OrderStatus;
+  estimatedTime: number;
+  timestamp: Date;
+}
+
+interface AppContextType {
+  user: User | null;
+  userMode: UserMode;
+  cart: CartItem[];
+  orders: Order[];
+  isLoading: boolean;
+  isInitializing: boolean;
+  stalls: Stall[];
+  createStall: (name: string, items: StallItem[], category?: string) => Promise<void>;
+  updateStall: (id: string, name: string, items: StallItem[], category?: string) => Promise<void>;
+  getVendorStall: () => Stall | undefined;
+  setUser: (user: User | null) => void;
+  setUserMode: (mode: UserMode) => void;
+  addToCart: (item: CartItem) => void;
+  removeFromCart: (id: string) => void;
+  clearCart: () => void;
+  addOrder: (order: Order) => void;
+  updateOrderStatus: (id: string, status: OrderStatus) => void;
+  loginUser: (email: string, password: string) => Promise<User>;
+  registerUser: (
+    name: string,
+    email: string,
+    password: string,
+    role: UserMode,
+    stallId?: number,
+    phone?: string
+  ) => Promise<void>;
+  logoutUser: () => void;
+  deleteUser: () => Promise<void>;
+  updateProfile: (data: { name?: string; email?: string; phone?: string; avatar?: string }) => Promise<void>;
+  fetchMyOrders: () => Promise<void>;
+  fetchVendorOrders: () => Promise<void>;
+  fetchStalls: () => Promise<Stall[]>;
+}
+
+const AppContext = createContext<AppContextType | undefined>(undefined);
+
+// ─── Vendor avatar persistence ─────────────────────────────────────────────
+// The backend doesn't reliably return avatar/image_url on stall objects, so
+// we maintain a localStorage map of vendorId → avatarUrl that gets merged
+// back into every fetchStalls() call. This is the single source of truth for
+// stall images on the client side.
+const VENDOR_AVATARS_KEY = 'vendorAvatars';
+
+const getStoredVendorAvatars = (): Record<string, string> => {
+  try {
+    return JSON.parse(localStorage.getItem(VENDOR_AVATARS_KEY) || '{}');
+  } catch {
+    return {};
+  }
+};
+
+const persistVendorAvatar = (vendorId: string, avatar: string) => {
+  if (!avatar) return;
+  const map = getStoredVendorAvatars();
+  map[vendorId] = avatar;
+  localStorage.setItem(VENDOR_AVATARS_KEY, JSON.stringify(map));
+};
+// ───────────────────────────────────────────────────────────────────────────
+
+const mapStall = (s: any, menuItems?: any[]): Stall => ({
+  id: String(s.id),
+  vendorId: String(s.owner_id),
+  stallName: s.name,
+  category: s.category,
+  items: (menuItems || []).map((i: any) => ({
+    id: String(i.id),
+    name: i.name,
+    price: i.price,
+    description: i.description,
+  })),
+  updatedAt: s.updated_at || new Date().toISOString(),
+  status: 'new' as const,
+  // API value if present; localStorage overlay is merged in fetchStalls()
+  image: s.avatar || s.image_url || undefined,
 });
 
-export const CreateStall: React.FC = () => {
-  const { createStall, updateStall, getVendorStall, user, isLoading } = useApp();
-  const navigate = useNavigate();
+export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [user, setUserState] = useState<User | null>(null);
+  const [userMode, setUserMode] = useState<UserMode>('customer');
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [stalls, setStalls] = useState<Stall[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true);
 
-  const existingStall = getVendorStall();
-  const isEditing = !!existingStall;
-
-  const [stallName, setStallName] = useState(existingStall?.stallName ?? '');
-  const [items, setItems] = useState<StallItem[]>(
-    existingStall?.items.length ? existingStall.items : [emptyItem()]
-  );
-  const [submitted, setSubmitted] = useState(false);
-  const [focusedItem, setFocusedItem] = useState<string | null>(null);
+  const stallsRef = React.useRef<Stall[]>([]);
+  useEffect(() => { stallsRef.current = stalls; }, [stalls]);
 
   useEffect(() => {
-    if (existingStall) {
-      setStallName(existingStall.stallName);
-      setItems(existingStall.items.length ? existingStall.items : [emptyItem()]);
-    }
-  }, [existingStall?.id]);
-
-  const addItem = () => {
-    const newItem = emptyItem();
-    setItems((prev) => [...prev, newItem]);
-    setFocusedItem(newItem.id);
-  };
-
-  const removeItem = (id: string) => {
-    if (items.length === 1) {
-      toast.error('You need at least one item');
-      return;
-    }
-    setItems((prev) => prev.filter((i) => i.id !== id));
-  };
-
-  const updateItem = (id: string, field: keyof StallItem, value: string | number) => {
-    setItems((prev) => prev.map((i) => (i.id === id ? { ...i, [field]: value } : i)));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!stallName.trim()) {
-      toast.error('Please enter a stall name');
-      return;
-    }
-    const validItems = items.filter((i) => i.name.trim() && i.price > 0);
-    if (validItems.length === 0) {
-      toast.error('Add at least one item with a name and price');
-      return;
-    }
-    try {
-      if (isEditing && existingStall) {
-        await updateStall(existingStall.id, stallName.trim(), validItems);
-        toast.success('Stall updated successfully!');
-      } else {
-        await createStall(stallName.trim(), validItems);
-        toast.success('Stall created successfully!');
+    const initApp = async () => {
+      try {
+        // Run concurrently — neither depends on the other
+        await Promise.all([fetchStalls(), restoreSession()]);
+      } finally {
+        setIsInitializing(false);
       }
-      setSubmitted(true);
-      setTimeout(() => navigate('/vendor'), 1800);
-    } catch (err: any) {
-      toast.error(err.message || 'Something went wrong');
+    };
+    initApp();
+  }, []);
+
+  const restoreSession = async () => {
+    const savedToken = localStorage.getItem('token');
+    const savedUser = localStorage.getItem('user');
+    if (!savedToken || !savedUser) return;
+
+    try {
+      const freshUser = await api.getMe();
+
+      // Avatar lives in localStorage only — backend doesn't store it
+      let localAvatar: string | undefined;
+      try { localAvatar = JSON.parse(savedUser)?.avatar; } catch { /* ignore */ }
+
+      const u: User = {
+        id: String(freshUser.id),
+        name: freshUser.name,
+        email: freshUser.email,
+        mode: freshUser.role as UserMode,
+        stallId: freshUser.stall_id != null ? String(freshUser.stall_id) : undefined,
+        phone: freshUser.phone,
+        avatar: localAvatar,
+      };
+
+      // ✅ If this vendor has a locally stored avatar, make sure it's in the
+      // avatars map so the next fetchStalls() call picks it up correctly
+      if (u.mode === 'vendor' && u.avatar) {
+        persistVendorAvatar(u.id, u.avatar);
+      }
+
+      setUserState(u);
+      setUserMode(u.mode);
+      localStorage.setItem('user', JSON.stringify(u));
+
+      if (u.mode === 'vendor') {
+        api.vendorOrders()
+          .then(res => { if (Array.isArray(res)) mapAndSetOrders(res); })
+          .catch(err => console.error('Auto-fetch vendor orders failed:', err));
+      } else {
+        api.myOrders()
+          .then(res => { if (Array.isArray(res)) mapAndSetOrders(res); })
+          .catch(err => console.error('Auto-fetch orders failed:', err));
+      }
+    } catch (err) {
+      console.warn('Session restore failed — clearing:', err);
+      localStorage.removeItem('user');
+      localStorage.removeItem('token');
     }
   };
 
-  if (submitted) {
-    return (
-      <div className="min-h-screen bg-white dark:bg-gray-900 flex items-center justify-center">
-        <motion.div
-          initial={{ scale: 0.8, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          className="text-center"
-        >
-          <motion.div
-            animate={{ scale: [1, 1.15, 1] }}
-            transition={{ duration: 0.6, repeat: 1 }}
-            className="w-24 h-24 rounded-full bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center mx-auto mb-6 shadow-2xl shadow-green-500/40"
-          >
-            <CheckCircle2 className="w-12 h-12 text-white" />
-          </motion.div>
-          <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-            {isEditing ? 'Stall Updated!' : 'Stall Created!'}
-          </h2>
-          <p className="text-gray-500 dark:text-gray-400">Redirecting to your dashboard…</p>
-        </motion.div>
-      </div>
-    );
-  }
+  // ✅ KEY FIX: after mapping API data, overlay locally-stored avatars so
+  // re-fetches never wipe vendor images that the backend doesn't return.
+  const fetchStalls = async (): Promise<Stall[]> => {
+    try {
+      const res = await api.listStalls();
+      if (!Array.isArray(res)) return [];
+
+      const vendorAvatars = getStoredVendorAvatars();
+
+      const stallsWithMenus = await Promise.all(
+        res.map(async (s: any) => {
+          try {
+            const menu = await api.getMenu(s.id);
+            const stall = mapStall(s, Array.isArray(menu) ? menu : []);
+            // API image takes priority; fall back to locally-stored avatar
+            const localAvatar = vendorAvatars[String(s.owner_id)];
+            return { ...stall, image: stall.image || localAvatar || undefined };
+          } catch {
+            const stall = mapStall(s, []);
+            const localAvatar = vendorAvatars[String(s.owner_id)];
+            return { ...stall, image: stall.image || localAvatar || undefined };
+          }
+        })
+      );
+
+      setStalls(stallsWithMenus);
+      return stallsWithMenus;
+    } catch (e) {
+      console.error('Failed to fetch stalls', e);
+      return [];
+    }
+  };
+
+  const setUser = (u: User | null) => {
+    setUserState(u);
+    if (u) {
+      localStorage.setItem('user', JSON.stringify(u));
+      if (u.mode === 'vendor' && u.avatar) {
+        // ✅ Persist to map AND patch stall list immediately so UI updates
+        // without waiting for the next fetchStalls() call
+        persistVendorAvatar(u.id, u.avatar);
+        setStalls(prev =>
+          prev.map(stall =>
+            stall.vendorId === u.id ? { ...stall, image: u.avatar } : stall
+          )
+        );
+      }
+    } else {
+      localStorage.removeItem('user');
+      localStorage.removeItem('token');
+    }
+  };
+
+  // ✅ Strips avatar before sending to backend (PUT /auth/me only accepts
+  // name/email/phone), then applies avatar locally via setUser which persists
+  // it to the vendorAvatars map and patches the stalls list immediately.
+  const updateProfile = async (data: { name?: string; email?: string; phone?: string; avatar?: string }) => {
+    if (!user) return;
+    try {
+      const { avatar, ...serverFields } = data;
+      await api.updateMe(serverFields);
+      // setUser handles avatar persistence + stall image update in one shot
+      setUser({ ...user, ...data });
+    } catch (error) {
+      console.error('Failed to update profile:', error);
+      throw error;
+    }
+  };
+
+  const resolveStallName = (stallId: string): string =>
+    stallsRef.current.find(s => s.id === stallId)?.stallName || 'Stall';
+
+  const mapAndSetOrders = (apiData: any[]) => {
+    const mapped: Order[] = apiData.map((o: any) => ({
+      id: String(o.id),
+      stallId: String(o.stall_id),
+      stallName: resolveStallName(String(o.stall_id)),
+      items: (o.items || []).map((i: any) => ({
+        id: String(i.id),
+        name: i.menu_item_name || 'Item',
+        price: i.price || 0,
+        quantity: i.quantity,
+      })),
+      total: o.total_price,
+      token: o.token,
+      status: o.status as OrderStatus,
+      estimatedTime: 15,
+      timestamp: new Date(o.created_at),
+    }));
+    setOrders(mapped);
+  };
+
+  const loginUser = async (email: string, password: string): Promise<User> => {
+    setIsLoading(true);
+    try {
+      const res = await api.login({ email, password });
+      localStorage.setItem('token', res.access_token);
+
+      let u: User = {
+        id: String(res.user.id),
+        name: res.user.name,
+        email: res.user.email,
+        mode: res.user.role as UserMode,
+        stallId: res.user.stall_id != null ? String(res.user.stall_id) : undefined,
+        phone: res.user.phone,
+        avatar: res.user.avatar,
+      };
+
+      setUser(u);
+      setUserMode(u.mode);
+
+      if (u.mode === 'vendor') {
+        const [freshStalls] = await Promise.all([fetchStalls(), fetchVendorOrders()]);
+        if (!u.stallId) {
+          const vendorStall = freshStalls.find(s => s.vendorId === u.id);
+          if (vendorStall) {
+            u = { ...u, stallId: vendorStall.id };
+            setUser(u);
+          }
+        }
+      } else {
+        await Promise.all([fetchMyOrders(), fetchStalls()]);
+      }
+
+      return u;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const registerUser = async (
+    name: string, email: string, password: string, role: UserMode, stallId?: number, phone?: string
+  ) => {
+    setIsLoading(true);
+    try {
+      const res = await api.register({ name, email, password, role, stall_id: stallId, phone });
+      localStorage.setItem('token', res.access_token);
+      const u: User = {
+        id: String(res.user.id),
+        name: res.user.name,
+        email: res.user.email,
+        mode: res.user.role as UserMode,
+        stallId: res.user.stall_id != null ? String(res.user.stall_id) : undefined,
+        phone: res.user.phone || phone,
+      };
+      setUser(u);
+      setUserMode(u.mode);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const clearSession = () => {
+    setUserState(null);
+    setOrders([]);
+    setCart([]);
+    localStorage.removeItem('user');
+    localStorage.removeItem('token');
+    fetchStalls();
+  };
+
+  const logoutUser = () => clearSession();
+
+  const deleteUser = async () => {
+    try {
+      await api.deleteAccount();
+    } catch (err: any) {
+      throw new Error(err.message || 'Failed to delete account');
+    } finally {
+      clearSession();
+    }
+  };
+
+  const fetchMyOrders = async () => {
+    try {
+      const res = await api.myOrders();
+      if (Array.isArray(res)) mapAndSetOrders(res);
+    } catch (e) {
+      console.error('Failed to fetch orders', e);
+    }
+  };
+
+  const fetchVendorOrders = async () => {
+    try {
+      const res = await api.vendorOrders();
+      if (Array.isArray(res)) mapAndSetOrders(res);
+    } catch (e) {
+      console.error('Failed to fetch vendor orders', e);
+    }
+  };
+
+  const addOrder = (order: Order) => setOrders(prev => [order, ...prev]);
+
+  const updateOrderStatus = (id: string, status: OrderStatus) => {
+    setOrders(prev => prev.map(o => o.id === id ? { ...o, status } : o));
+  };
+
+  const addToCart = (item: CartItem) => {
+    setCart(prev => {
+      const existing = prev.find(i => i.id === item.id);
+      if (existing) {
+        return prev.map(i =>
+          i.id === item.id ? { ...i, quantity: i.quantity + (item.quantity > 0 ? item.quantity : 1) } : i
+        );
+      }
+      return [...prev, item];
+    });
+  };
+
+  const removeFromCart = (id: string) => setCart(prev => prev.filter(i => i.id !== id));
+  const clearCart = () => setCart([]);
+
+  const createStall = async (name: string, items: StallItem[], category = 'snacks') => {
+    if (!user) return;
+    try {
+      // ✅ Pull from avatars map as fallback in case user.avatar isn't set yet
+      const vendorAvatars = getStoredVendorAvatars();
+      const avatar = user.avatar || vendorAvatars[user.id];
+      const res = await api.createStall({ name, category, avatar });
+      const stallId = res.id;
+      await Promise.all(
+        items.map(item =>
+          api.addMenuItem({
+            stall_id: stallId,
+            name: item.name,
+            price: item.price,
+            description: item.description || '',
+            is_available: true,
+          })
+        )
+      );
+      setUser({ ...user, stallId: String(stallId) });
+      await fetchStalls();
+    } catch (e: any) {
+      console.error('Failed to create stall', e);
+      throw e;
+    }
+  };
+
+  const updateStall = async (id: string, name: string, items: StallItem[], category = 'snacks') => {
+    if (!user) return;
+    try {
+      // ✅ Pull from avatars map so image survives even if user.avatar is stale
+      const vendorAvatars = getStoredVendorAvatars();
+      const avatar = user.avatar || vendorAvatars[user.id];
+      await api.updateStall(parseInt(id), { name, category, avatar });
+
+      const currentMenu: any[] = await api.getMenu(parseInt(id)).catch(() => []);
+      const currentIds = new Set(currentMenu.map((i: any) => String(i.id)));
+      const incomingExistingIds = new Set(
+        items.filter(i => i.id && currentIds.has(i.id)).map(i => i.id)
+      );
+      await Promise.all(
+        currentMenu
+          .filter((i: any) => !incomingExistingIds.has(String(i.id)))
+          .map((i: any) => api.deleteMenuItem(i.id))
+      );
+      await Promise.all(
+        items.map(item => {
+          if (item.id && currentIds.has(item.id)) {
+            return api.updateMenuItem(parseInt(item.id), {
+              name: item.name,
+              price: item.price,
+              description: item.description || '',
+              is_available: true,
+            });
+          }
+          return api.addMenuItem({
+            stall_id: parseInt(id),
+            name: item.name,
+            price: item.price,
+            description: item.description || '',
+            is_available: true,
+          });
+        })
+      );
+      await fetchStalls();
+    } catch (e: any) {
+      console.error('Failed to update stall', e);
+      throw e;
+    }
+  };
+
+  const getVendorStall = () => stalls.find(stall => stall.vendorId === user?.id);
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pt-20 pb-16 transition-colors duration-200">
-      <div className="max-w-3xl mx-auto px-4 sm:px-6">
-        {/* Back button */}
-        <motion.button
-          initial={{ opacity: 0, x: -10 }}
-          animate={{ opacity: 1, x: 0 }}
-          onClick={() => navigate('/vendor')}
-          className="flex items-center gap-2 text-gray-500 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400 transition-colors mb-8 group"
-        >
-          <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-          <span className="text-sm font-medium">Back to Dashboard</span>
-        </motion.button>
-
-        {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: -16 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-10"
-        >
-          <div className="flex items-center gap-4 mb-3">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center shadow-lg shadow-green-500/30">
-              {isEditing ? <Edit3 className="w-7 h-7 text-white" /> : <Store className="w-7 h-7 text-white" />}
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-                {isEditing ? 'Edit Your Stall' : 'Create Your Stall'}
-              </h1>
-              <p className="text-gray-500 dark:text-gray-400 text-sm mt-0.5">
-                {isEditing
-                  ? 'Update your stall details — changes reflect instantly everywhere'
-                  : 'Set up your stall with items and pricing to start accepting orders'}
-              </p>
-            </div>
-          </div>
-
-          {isEditing && existingStall && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              className="mt-4 flex items-center gap-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/40 rounded-xl px-4 py-3"
-            >
-              <Sparkles className="w-4 h-4 text-amber-500 flex-shrink-0" />
-              <p className="text-amber-700 dark:text-amber-400 text-sm">
-                Last updated: {new Date(existingStall.updatedAt).toLocaleString()}
-              </p>
-              <span className={`ml-auto px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                existingStall.status === 'new'
-                  ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400'
-                  : 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400'
-              }`}>
-                {existingStall.status === 'new' ? '🆕 New' : '🔄 Updated'}
-              </span>
-            </motion.div>
-          )}
-        </motion.div>
-
-        <form onSubmit={handleSubmit} className="space-y-8">
-          {/* Stall Name */}
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="bg-white dark:bg-gray-800/60 rounded-2xl p-6 border border-gray-200 dark:border-gray-700/50 shadow-sm"
-          >
-            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
-              <Store className="w-4 h-4 text-green-500" />
-              Stall Name <span className="text-red-400">*</span>
-            </label>
-            <input
-              type="text"
-              value={stallName}
-              onChange={(e) => setStallName(e.target.value)}
-              placeholder="e.g. Raj's Chaat Corner"
-              className="w-full px-4 py-3.5 bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20 transition-all text-lg font-medium"
-            />
-          </motion.div>
-
-          {/* Items Section */}
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                <Tag className="w-5 h-5 text-green-500" />
-                Menu Items
-              </h2>
-              <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-2.5 py-1 rounded-full">
-                {items.length} item{items.length !== 1 ? 's' : ''}
-              </span>
-            </div>
-
-            <div className="space-y-4">
-              <AnimatePresence mode="popLayout">
-                {items.map((item, index) => (
-                  <motion.div
-                    key={item.id}
-                    layout
-                    initial={{ opacity: 0, scale: 0.96, y: 10 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.94, y: -10 }}
-                    transition={{ duration: 0.2 }}
-                    className={`bg-white dark:bg-gray-800/60 rounded-2xl border transition-all shadow-sm ${
-                      focusedItem === item.id
-                        ? 'border-green-400 dark:border-green-500/60 ring-2 ring-green-500/15'
-                        : 'border-gray-200 dark:border-gray-700/50'
-                    }`}
-                    onFocus={() => setFocusedItem(item.id)}
-                    onBlur={() => setFocusedItem(null)}
-                  >
-                    {/* Item header */}
-                    <div className="flex items-center justify-between px-5 pt-4 pb-2">
-                      <span className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">
-                        Item {index + 1}
-                      </span>
-                      <motion.button
-                        type="button"
-                        whileHover={{ scale: 1.1 }}
-                        whileTap={{ scale: 0.9 }}
-                        onClick={() => removeItem(item.id)}
-                        className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </motion.button>
-                    </div>
-
-                    <div className="px-5 pb-5 space-y-3">
-                      {/* Item Name + Price row */}
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        <div className="sm:col-span-2 relative">
-                          <input
-                            type="text"
-                            value={item.name}
-                            onChange={(e) => updateItem(item.id, 'name', e.target.value)}
-                            placeholder="Item name (e.g. Pani Puri)"
-                            className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20 transition-all"
-                          />
-                        </div>
-                        <div className="relative">
-                          <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                          <input
-                            type="number"
-                            value={item.price || ''}
-                            onChange={(e) => updateItem(item.id, 'price', parseFloat(e.target.value) || 0)}
-                            placeholder="Price"
-                            min="0"
-                            step="0.5"
-                            className="w-full pl-9 pr-4 py-3 bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20 transition-all"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Description */}
-                      <div className="relative">
-                        <FileText className="absolute left-3 top-3.5 w-4 h-4 text-gray-400" />
-                        <input
-                          type="text"
-                          value={item.description ?? ''}
-                          onChange={(e) => updateItem(item.id, 'description', e.target.value)}
-                          placeholder="Short description (optional)"
-                          className="w-full pl-9 pr-4 py-3 bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20 transition-all text-sm"
-                        />
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-
-              {/* Add item button */}
-              <motion.button
-                type="button"
-                onClick={addItem}
-                whileHover={{ scale: 1.01 }}
-                whileTap={{ scale: 0.99 }}
-                className="w-full py-4 rounded-2xl border-2 border-dashed border-gray-300 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-green-400 hover:text-green-600 dark:hover:border-green-500 dark:hover:text-green-400 flex items-center justify-center gap-2 transition-all group"
-              >
-                <Plus className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                <span className="font-medium">Add Another Item</span>
-              </motion.button>
-            </div>
-          </motion.div>
-
-          {/* Submit Button */}
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.35 }}
-          >
-            <motion.button
-              type="submit"
-              disabled={isLoading}
-              whileHover={{ scale: 1.02, boxShadow: '0 0 40px rgba(34, 197, 94, 0.45)' }}
-              whileTap={{ scale: 0.98 }}
-              className="w-full py-4 bg-gradient-to-r from-green-500 to-emerald-500 text-white font-bold text-lg rounded-2xl shadow-lg shadow-green-500/25 flex items-center justify-center gap-3 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              {isLoading ? (
-                <>
-                  <motion.div
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                    className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full"
-                  />
-                  {isEditing ? 'Updating…' : 'Creating…'}
-                </>
-              ) : (
-                <>
-                  {isEditing ? <Edit3 className="w-5 h-5" /> : <Sparkles className="w-5 h-5" />}
-                  {isEditing ? 'Update Stall' : 'Create Stall'}
-                  <ChevronRight className="w-5 h-5" />
-                </>
-              )}
-            </motion.button>
-          </motion.div>
-        </form>
-      </div>
-    </div>
+    <AppContext.Provider value={{
+      user, userMode, cart, orders, isLoading, isInitializing, stalls,
+      setUser, setUserMode, addToCart, removeFromCart, clearCart,
+      addOrder, updateOrderStatus, loginUser, registerUser,
+      logoutUser, deleteUser, updateProfile,
+      fetchMyOrders, fetchVendorOrders, fetchStalls,
+      createStall, updateStall, getVendorStall,
+    }}>
+      {children}
+    </AppContext.Provider>
   );
+};
+
+export const useApp = () => {
+  const ctx = useContext(AppContext);
+  if (!ctx) throw new Error('useApp must be used inside AppProvider');
+  return ctx;
 };
