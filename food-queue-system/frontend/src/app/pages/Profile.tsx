@@ -1,23 +1,9 @@
-
-
-
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { User, Package, IndianRupee, LogOut, Trash2, Clock, ShoppingBag, TrendingUp, Mail, Edit2, Phone, Store } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
-
-const SHOP_AVATARS = [
-  "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=150&h=150&fit=crop",
-  "https://images.unsplash.com/photo-1552566626-52f8b828add9?w=150&h=150&fit=crop",
-  "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=150&h=150&fit=crop",
-  "https://images.unsplash.com/photo-1513104890138-7c749659a591?w=150&h=150&fit=crop",
-  "https://images.unsplash.com/photo-1497935586351-b67a49e012bf?w=150&h=150&fit=crop",
-  "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=150&h=150&fit=crop",
-  "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=150&h=150&fit=crop",
-  "https://images.unsplash.com/photo-1550966871-3ed3cdb5ed0c?w=150&h=150&fit=crop",
-];
 
 const CUSTOMER_AVATARS = [
   "https://img.freepik.com/free-psd/3d-illustration-little-boy-with-glasses_23-2149436185.jpg?w=150&h=150&fit=crop",
@@ -35,7 +21,6 @@ export const Profile: React.FC = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  // ✅ Track saving state so the button shows a spinner while the API call runs
   const [isSaving, setIsSaving] = useState(false);
 
   const initialPhoneDigits = user?.phone?.replace(/\D/g, '').slice(-10) || '';
@@ -86,10 +71,6 @@ export const Profile: React.FC = () => {
     if (value.length <= 10) setEditPhone(value);
   };
 
-  // ✅ UPDATED: Now calls updateProfile() which hits PUT /auth/me on the backend,
-  // persisting name/email/phone to the DB. Avatar is still local-only since the
-  // backend has no image storage — it's merged in AppContext.updateProfile().
-  // Previously this only called setUser() so changes were lost on page refresh.
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -102,6 +83,7 @@ export const Profile: React.FC = () => {
       editName !== user.name ||
       editEmail !== user.email ||
       editPhone !== displayPhone ||
+      // ✅ For vendors, avatar never changes here so this will always be false
       editAvatar !== (user.avatar || '');
 
     if (!hasChanges) {
@@ -116,6 +98,7 @@ export const Profile: React.FC = () => {
         name: editName,
         email: editEmail,
         phone: editPhone ? `+91${editPhone}` : '',
+        // ✅ For vendors, editAvatar stays as user.avatar (unchanged)
         avatar: editAvatar,
       });
       toast.success('Profile updated successfully');
@@ -138,8 +121,6 @@ export const Profile: React.FC = () => {
         { icon: IndianRupee, label: 'Revenue Generated', value: `₹${totalSpent.toFixed(2)}`, color: 'from-green-500 to-emerald-500' },
         { icon: TrendingUp, label: 'Completed Orders', value: completedOrders, color: 'from-purple-500 to-pink-500' },
       ];
-
-  const avatarsToDisplay = userMode === 'vendor' ? SHOP_AVATARS : CUSTOMER_AVATARS;
 
   return (
     <div className="min-h-screen bg-white dark:bg-gray-900 pt-20 pb-12 transition-colors duration-200">
@@ -165,7 +146,7 @@ export const Profile: React.FC = () => {
                 className="w-24 h-24 rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 flex items-center justify-center text-white text-4xl font-bold shadow-lg overflow-hidden shrink-0 border-4 border-white dark:border-gray-800"
               >
                 {user.avatar ? (
-                  <img src={user.avatar} alt={user.name} className="w-full h-full object-cover bg-white" />
+                  <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
                 ) : (
                   user.name.charAt(0).toUpperCase()
                 )}
@@ -353,33 +334,48 @@ export const Profile: React.FC = () => {
             >
               <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Edit Profile</h3>
               <form onSubmit={handleUpdateProfile} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    {userMode === 'vendor' ? 'Shop Avatar' : 'Profile Avatar'}
-                  </label>
-                  <div className={`grid gap-3 mb-4 ${userMode === 'vendor' ? 'grid-cols-4 sm:grid-cols-4' : 'grid-cols-3 sm:grid-cols-3'}`}>
-                    {avatarsToDisplay.map((avatarUrl, index) => (
-                      <div
-                        key={index}
-                        onClick={() => setEditAvatar(avatarUrl)}
-                        className={`relative aspect-square cursor-pointer rounded-xl overflow-hidden border-2 bg-gray-50 dark:bg-gray-700 transition-all duration-200 ${
-                          editAvatar === avatarUrl
-                            ? 'border-green-500 scale-105 shadow-md shadow-green-500/20 z-10'
-                            : 'border-transparent hover:scale-105 hover:opacity-90'
-                        }`}
-                      >
-                        <img
-                          src={avatarUrl}
-                          alt={`Avatar option ${index + 1}`}
-                          className="w-full h-full object-cover mix-blend-multiply dark:mix-blend-normal"
-                        />
-                      </div>
-                    ))}
+
+                {/* ✅ Avatar picker shown for customers only — vendors set theirs in Create/Edit Stall */}
+                {userMode === 'customer' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Profile Avatar
+                    </label>
+                    <div className="grid grid-cols-3 gap-3 mb-4">
+                      {CUSTOMER_AVATARS.map((avatarUrl, index) => (
+                        <div
+                          key={index}
+                          onClick={() => setEditAvatar(avatarUrl)}
+                          className={`relative aspect-square cursor-pointer rounded-xl overflow-hidden border-2 bg-gray-50 dark:bg-gray-700 transition-all duration-200 ${
+                            editAvatar === avatarUrl
+                              ? 'border-green-500 scale-105 shadow-md shadow-green-500/20 z-10'
+                              : 'border-transparent hover:scale-105 hover:opacity-90'
+                          }`}
+                        >
+                          <img
+                            src={avatarUrl}
+                            alt={`Avatar option ${index + 1}`}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
+
+                {/* ✅ For vendors, show a note pointing them to Edit Stall instead */}
+                {userMode === 'vendor' && (
+                  <div className="flex items-start gap-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700/40 rounded-xl">
+                    <Store className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
+                    <p className="text-sm text-blue-700 dark:text-blue-400">
+                      To change your stall photo, go to <strong>Edit Stall</strong> from your vendor dashboard.
+                    </p>
+                  </div>
+                )}
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    {userMode === 'vendor' ? 'Shop Name' : 'Name'}
+                    {userMode === 'vendor' ? 'Display Name' : 'Name'}
                   </label>
                   <input
                     type="text"
@@ -390,6 +386,7 @@ export const Profile: React.FC = () => {
                     className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 outline-none text-gray-900 dark:text-white disabled:opacity-50"
                   />
                 </div>
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
                   <input
@@ -401,6 +398,7 @@ export const Profile: React.FC = () => {
                     className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 outline-none text-gray-900 dark:text-white disabled:opacity-50"
                   />
                 </div>
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Phone Number</label>
                   <div className="flex">
@@ -418,6 +416,7 @@ export const Profile: React.FC = () => {
                     />
                   </div>
                 </div>
+
                 <div className="flex gap-3 mt-6 pt-4">
                   <motion.button
                     type="button"

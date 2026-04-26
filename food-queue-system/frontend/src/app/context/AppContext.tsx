@@ -67,8 +67,9 @@ interface AppContextType {
   isLoading: boolean;
   isInitializing: boolean;
   stalls: Stall[];
-  createStall: (name: string, items: StallItem[], category?: string) => Promise<void>;
-  updateStall: (id: string, name: string, items: StallItem[], category?: string) => Promise<void>;
+  // ✅ avatar param added so CreateStall can pass it directly
+  createStall: (name: string, items: StallItem[], category?: string, avatar?: string) => Promise<void>;
+  updateStall: (id: string, name: string, items: StallItem[], category?: string, avatar?: string) => Promise<void>;
   getVendorStall: () => Stall | undefined;
   setUser: (user: User | null) => void;
   setUserMode: (mode: UserMode) => void;
@@ -97,10 +98,6 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 // ─── Vendor avatar persistence ─────────────────────────────────────────────
-// The backend doesn't reliably return avatar/image_url on stall objects, so
-// we maintain a localStorage map of vendorId → avatarUrl that gets merged
-// back into every fetchStalls() call. This is the single source of truth for
-// stall images on the client side.
 const VENDOR_AVATARS_KEY = 'vendorAvatars';
 
 const getStoredVendorAvatars = (): Record<string, string> => {
@@ -132,7 +129,6 @@ const mapStall = (s: any, menuItems?: any[]): Stall => ({
   })),
   updatedAt: s.updated_at || new Date().toISOString(),
   status: 'new' as const,
-  // API value if present; localStorage overlay is merged in fetchStalls()
   image: s.avatar || s.image_url || undefined,
 });
 
@@ -151,7 +147,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     const initApp = async () => {
       try {
-        // Run concurrently — neither depends on the other
         await Promise.all([fetchStalls(), restoreSession()]);
       } finally {
         setIsInitializing(false);
@@ -168,7 +163,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const freshUser = await api.getMe();
 
-      // Avatar lives in localStorage only — backend doesn't store it
       let localAvatar: string | undefined;
       try { localAvatar = JSON.parse(savedUser)?.avatar; } catch { /* ignore */ }
 
@@ -182,8 +176,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         avatar: localAvatar,
       };
 
-      // ✅ If this vendor has a locally stored avatar, make sure it's in the
-      // avatars map so the next fetchStalls() call picks it up correctly
       if (u.mode === 'vendor' && u.avatar) {
         persistVendorAvatar(u.id, u.avatar);
       }
@@ -208,8 +200,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  // ✅ KEY FIX: after mapping API data, overlay locally-stored avatars so
-  // re-fetches never wipe vendor images that the backend doesn't return.
   const fetchStalls = async (): Promise<Stall[]> => {
     try {
       const res = await api.listStalls();
@@ -222,7 +212,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           try {
             const menu = await api.getMenu(s.id);
             const stall = mapStall(s, Array.isArray(menu) ? menu : []);
-            // API image takes priority; fall back to locally-stored avatar
             const localAvatar = vendorAvatars[String(s.owner_id)];
             return { ...stall, image: stall.image || localAvatar || undefined };
           } catch {
@@ -246,8 +235,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (u) {
       localStorage.setItem('user', JSON.stringify(u));
       if (u.mode === 'vendor' && u.avatar) {
-        // ✅ Persist to map AND patch stall list immediately so UI updates
-        // without waiting for the next fetchStalls() call
         persistVendorAvatar(u.id, u.avatar);
         setStalls(prev =>
           prev.map(stall =>
@@ -261,15 +248,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  // ✅ Strips avatar before sending to backend (PUT /auth/me only accepts
-  // name/email/phone), then applies avatar locally via setUser which persists
-  // it to the vendorAvatars map and patches the stalls list immediately.
   const updateProfile = async (data: { name?: string; email?: string; phone?: string; avatar?: string }) => {
     if (!user) return;
     try {
       const { avatar, ...serverFields } = data;
       await api.updateMe(serverFields);
-      // setUser handles avatar persistence + stall image update in one shot
       setUser({ ...user, ...data });
     } catch (error) {
       console.error('Failed to update profile:', error);
@@ -420,14 +403,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const removeFromCart = (id: string) => setCart(prev => prev.filter(i => i.id !== id));
   const clearCart = () => setCart([]);
 
-  const createStall = async (name: string, items: StallItem[], category = 'snacks') => {
+  // ✅ avatar now comes directly from CreateStall's picker, not from user.avatar
+  const createStall = async (name: string, items: StallItem[], category = 'snacks', avatar?: string) => {
     if (!user) return;
     try {
-      // ✅ Pull from avatars map as fallback in case user.avatar isn't set yet
       const vendorAvatars = getStoredVendorAvatars();
-      const avatar = user.avatar || vendorAvatars[user.id];
-      const res = await api.createStall({ name, category, avatar });
+      // Priority: picker selection > existing stored avatar > user.avatar
+      const resolvedAvatar = avatar || vendorAvatars[user.id] || user.avatar;
+
+      const res = await api.createStall({ name, category, avatar: resolvedAvatar });
       const stallId = res.id;
+
       await Promise.all(
         items.map(item =>
           api.addMenuItem({
@@ -439,7 +425,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           })
         )
       );
-      setUser({ ...user, stallId: String(stallId) });
+
+      // ✅ Persist the chosen avatar and update user + stall list in one shot
+      const updatedUser = { ...user, stallId: String(stallId), avatar: resolvedAvatar };
+      if (resolvedAvatar) persistVendorAvatar(user.id, resolvedAvatar);
+      setUser(updatedUser);
       await fetchStalls();
     } catch (e: any) {
       console.error('Failed to create stall', e);
@@ -447,13 +437,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const updateStall = async (id: string, name: string, items: StallItem[], category = 'snacks') => {
+  // ✅ avatar now comes directly from CreateStall's picker
+  const updateStall = async (id: string, name: string, items: StallItem[], category = 'snacks', avatar?: string) => {
     if (!user) return;
     try {
-      // ✅ Pull from avatars map so image survives even if user.avatar is stale
       const vendorAvatars = getStoredVendorAvatars();
-      const avatar = user.avatar || vendorAvatars[user.id];
-      await api.updateStall(parseInt(id), { name, category, avatar });
+      const resolvedAvatar = avatar || vendorAvatars[user.id] || user.avatar;
+
+      await api.updateStall(parseInt(id), { name, category, avatar: resolvedAvatar });
+
+      // ✅ Persist updated avatar choice immediately
+      if (resolvedAvatar) persistVendorAvatar(user.id, resolvedAvatar);
 
       const currentMenu: any[] = await api.getMenu(parseInt(id)).catch(() => []);
       const currentIds = new Set(currentMenu.map((i: any) => String(i.id)));
