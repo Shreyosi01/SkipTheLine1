@@ -65,6 +65,7 @@ interface AppContextType {
   cart: CartItem[];
   orders: Order[];
   isLoading: boolean;
+  isInitializing: boolean;
   stalls: Stall[];
   createStall: (name: string, items: StallItem[], category?: string) => Promise<void>;
   updateStall: (id: string, name: string, items: StallItem[], category?: string) => Promise<void>;
@@ -90,6 +91,8 @@ interface AppContextType {
   fetchMyOrders: () => Promise<void>;
   fetchVendorOrders: () => Promise<void>;
   fetchStalls: () => Promise<Stall[]>;
+  // ✅ UPDATED: Added updateProfile to the context interface
+  updateProfile: (updatedData: { name?: string; email?: string; phone?: string; avatar?: string }) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -117,11 +120,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [orders, setOrders] = useState<Order[]>([]);
   const [stalls, setStalls] = useState<Stall[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true);
 
   const stallsRef = React.useRef<Stall[]>([]);
   useEffect(() => { stallsRef.current = stalls; }, [stalls]);
 
   useEffect(() => {
+    const initApp = async () => {
+      try {
+        await Promise.all([fetchStalls(), restoreSession()]);
+      } finally {
+        setIsInitializing(false);
+      }
+    };
+    initApp();
     fetchStalls();
     const savedUser = localStorage.getItem('user');
     const savedToken = localStorage.getItem('token');
@@ -144,8 +156,49 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
   }, []);
+  const restoreSession = async () => {
+    const savedToken = localStorage.getItem('token');
+    const savedUser = localStorage.getItem('user');
+    if (!savedToken || !savedUser) return;
 
-  // ✅ Returns the fresh stalls list so loginUser can use it immediately
+    try {
+      // Verify token and get fresh user data from the server
+      const freshUser = await api.getMe();
+
+      // Merge server data with locally stored avatar (not persisted in DB)
+      let localAvatar: string | undefined;
+      try {
+        localAvatar = JSON.parse(savedUser)?.avatar;
+      } catch {
+        localAvatar = undefined;
+      }
+
+      const u: User = {
+        id: String(freshUser.id),
+        name: freshUser.name,
+        email: freshUser.email,
+        mode: freshUser.role as UserMode,
+        phone: freshUser.phone,
+        avatar: localAvatar,
+      };
+      setUserState(u);
+      setUserMode(u.mode);
+      localStorage.setItem('user', JSON.stringify(u));
+
+      // Fetch orders in background — don't block session restore
+      api.myOrders()
+        .then(res => { if (Array.isArray(res)) mapAndSetOrders(res); })
+        .catch(err => console.error('Auto-fetch orders failed:', err));
+
+    } catch (err) {
+      // Token is expired or invalid — clear everything so the user gets the
+      // login page instead of a broken authenticated state
+      console.warn('Session restore failed — clearing local session:', err);
+      localStorage.removeItem('user');
+      localStorage.removeItem('token');
+    }
+  };
+
   const fetchStalls = async (): Promise<Stall[]> => {
     try {
       const res = await api.listStalls();
@@ -183,6 +236,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  // ✅ UPDATED: Implementation for updateProfile syncing with backend & local state
+  const updateProfile = async (updatedData: { name?: string; email?: string; phone?: string; avatar?: string }) => {
+    if (!user) return;
+    try {
+      await api.updateMe({
+        name: updatedData.name,
+        email: updatedData.email,
+        phone: updatedData.phone,
+        avatar: updatedData.avatar,
+      });
+
+      const updatedUser = {
+        ...user,
+        ...updatedData,
+      };
+      
+      // using setUser correctly syncs localStorage and updates the vendor stall image if needed
+      setUser(updatedUser); 
+    } catch (error) {
+      console.error("Failed to update profile:", error);
+      throw error;
+    }
+  };
+
   const resolveStallName = (stallId: string): string =>
     stallsRef.current.find(s => s.id === stallId)?.stallName || 'Stall';
 
@@ -217,7 +294,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         name: res.user.name,
         email: res.user.email,
         mode: res.user.role as UserMode,
-        // Primary source: stall_id from login response (fixed in routers/auth.py)
         stallId: res.user.stall_id != null ? String(res.user.stall_id) : undefined,
         phone: res.user.phone,
         avatar: res.user.avatar,
@@ -227,18 +303,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setUserMode(u.mode);
 
       if (u.mode === 'vendor') {
-        // Fetch stalls and orders concurrently; fetchStalls returns the list directly
         const [freshStalls] = await Promise.all([
           fetchStalls(),
           fetchVendorOrders(),
         ]);
 
-        // ✅ Fallback: if backend still didn't send stall_id, resolve from stalls list
         if (!u.stallId) {
           const vendorStall = freshStalls.find(s => s.vendorId === u.id);
           if (vendorStall) {
             u = { ...u, stallId: vendorStall.id };
-            setUser(u); // persist resolved stallId to localStorage too
+            setUser(u);
           }
         }
       } else {
@@ -402,12 +476,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   return (
     <AppContext.Provider value={{
-      user, userMode, cart, orders, isLoading, stalls,
+      user, userMode, cart, orders, isLoading, isInitializing, stalls,
       setUser, setUserMode, addToCart, removeFromCart, clearCart,
       addOrder, updateOrderStatus, loginUser, registerUser,
       logoutUser, deleteUser,
       fetchMyOrders, fetchVendorOrders, fetchStalls,
       createStall, updateStall, getVendorStall,
+      updateProfile, // ✅ UPDATED: Exported here so Profile.tsx can use it
     }}>
       {children}
     </AppContext.Provider>
