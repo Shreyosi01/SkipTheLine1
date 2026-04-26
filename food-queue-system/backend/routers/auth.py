@@ -97,8 +97,6 @@ def login(data: schemas.LoginRequest, db: Session = Depends(get_db)):
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Login failed: {str(e)}")
 
-
-# ✅ MY ADDITION + TEAMMATE B: GET /auth/me
 # Used by AppContext.restoreSession to verify token on page reload.
 # Uses build_user_response so the shape is identical to login/register.
 @router.get("/me", response_model=schemas.UserResponse)
@@ -107,7 +105,6 @@ def get_me(current_user: models.User = Depends(get_current_user),
     return build_user_response(current_user, db)
 
 
-# ✅ MY ADDITION: PUT /auth/me — persists profile edits to DB
 @router.put("/me", response_model=schemas.UserResponse)
 def update_me(data: schemas.UpdateProfileRequest,
               db: Session = Depends(get_db),
@@ -130,12 +127,6 @@ def update_me(data: schemas.UpdateProfileRequest,
 
 
 # ✅ MERGED: DELETE /auth/delete
-#
-# Conflict resolution:
-# - Teammate B used DELETE /auth/me  → WRONG path (client.ts calls /auth/delete)
-# - Teammate A used DELETE /auth/delete with full cascade → CORRECT path, good cascade
-# - My version also used /auth/delete with cascade
-# - WINNER: Teammate A's cascade logic (handles multiple stalls, uses
 #   synchronize_session=False which is safer for bulk deletes) + my get_current_user
 #   dependency (cleaner than re-decoding the JWT manually inside the handler)
 @router.delete("/delete", status_code=200)
