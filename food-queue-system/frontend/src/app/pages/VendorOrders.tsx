@@ -45,22 +45,22 @@ export const VendorOrders: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 pt-20 pb-12">
+    <div className="min-h-screen bg-white dark:bg-gray-900 pt-20 pb-12 transition-colors duration-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <motion.button
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           whileHover={{ x: -5 }}
           onClick={() => navigate('/vendor')}
-          className="flex items-center gap-2 text-gray-400 hover:text-white mb-6 transition-colors"
+          className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white mb-6 transition-colors"
         >
           <ArrowLeft className="w-5 h-5" />
           <span>Back to Dashboard</span>
         </motion.button>
 
         <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
-          <h1 className="text-4xl font-bold text-white mb-2">Order Management</h1>
-          <p className="text-gray-400">Manage and update order statuses</p>
+          <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-2">Order Management</h1>
+          <p className="text-gray-600 dark:text-gray-400">Manage and update order statuses</p>
         </motion.div>
 
         <motion.div
@@ -78,7 +78,7 @@ export const VendorOrders: React.FC = () => {
               className={`px-6 py-2 rounded-full font-semibold transition-all whitespace-nowrap ${
                 filter === status
                   ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-lg'
-                  : 'bg-gray-800/50 text-gray-400 hover:text-white border border-purple-500/20'
+                  : 'bg-gray-100 dark:bg-gray-800/50 text-gray-700 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white border border-gray-300 dark:border-purple-500/20'
               }`}
             >
               {status.charAt(0).toUpperCase() + status.slice(1)}
@@ -88,9 +88,9 @@ export const VendorOrders: React.FC = () => {
 
         {filteredOrders.length === 0 ? (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-20">
-            <Package className="w-20 h-20 mx-auto mb-4 text-gray-600" />
-            <h2 className="text-2xl font-semibold text-white mb-2">No orders found</h2>
-            <p className="text-gray-400">Orders will appear here when customers place them</p>
+            <Package className="w-20 h-20 mx-auto mb-4 text-gray-400 dark:text-gray-600" />
+            <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">No orders found</h2>
+            <p className="text-gray-600 dark:text-gray-400">Orders will appear here when customers place them</p>
           </motion.div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -102,7 +102,7 @@ export const VendorOrders: React.FC = () => {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.1 }}
-                  className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-purple-500/20"
+                  className="bg-gray-50 dark:bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-200 dark:border-purple-500/20 transition-colors duration-200"
                 >
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-3">
@@ -110,8 +110,8 @@ export const VendorOrders: React.FC = () => {
                         {order.token}
                       </div>
                       <div>
-                        <p className="text-white font-semibold">{order.stallName}</p>
-                        <p className="text-gray-400 text-sm">{new Date(order.timestamp).toLocaleTimeString()}</p>
+                        <p className="text-gray-900 dark:text-white font-semibold">{order.stallName}</p>
+                        <p className="text-gray-600 dark:text-gray-400 text-sm">{new Date(order.timestamp).toLocaleTimeString()}</p>
                       </div>
                     </div>
                     <p className="text-2xl font-bold bg-gradient-to-r from-green-400 to-emerald-400 bg-clip-text text-transparent">
@@ -119,21 +119,21 @@ export const VendorOrders: React.FC = () => {
                     </p>
                   </div>
 
-                  <div className="space-y-2 mb-4 p-3 bg-gray-900/50 rounded-lg">
+                  <div className="space-y-2 mb-4 p-3 bg-gray-100 dark:bg-gray-900/50 rounded-lg transition-colors duration-200">
                     {order.items.map((item) => (
                       <div key={item.id} className="flex justify-between text-sm">
-                        <span className="text-gray-300">{item.quantity}x {item.name}</span>
-                        <span className="text-gray-400">₹{(item.price * item.quantity).toFixed(2)}</span>
+                        <span className="text-gray-700 dark:text-gray-300">{item.quantity}x {item.name}</span>
+                        <span className="text-gray-600 dark:text-gray-400">₹{(item.price * item.quantity).toFixed(2)}</span>
                       </div>
                     ))}
                   </div>
 
                   <div className="mb-4">
-                    <span className={`inline-flex px-3 py-1 rounded-full text-xs font-semibold ${
-                      order.status === 'placed' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/50'
-                      : order.status === 'preparing' ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/50'
-                      : order.status === 'ready' ? 'bg-green-500/20 text-green-400 border border-green-500/50'
-                      : 'bg-purple-500/20 text-purple-400 border border-purple-500/50'
+                    <span className={`inline-flex px-3 py-1 rounded-full text-xs font-semibold transition-colors duration-200 ${
+                      order.status === 'placed' ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400 border border-blue-300 dark:border-blue-500/50'
+                      : order.status === 'preparing' ? 'bg-yellow-100 dark:bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 border border-yellow-300 dark:border-yellow-500/50'
+                      : order.status === 'ready' ? 'bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 border border-green-300 dark:border-green-500/50'
+                      : 'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-400 border border-purple-300 dark:border-purple-500/50'
                     }`}>
                       {order.status.toUpperCase()}
                     </span>
@@ -154,7 +154,7 @@ export const VendorOrders: React.FC = () => {
                   )}
 
                   <motion.div
-                    className="mt-4 flex items-center justify-center gap-2 text-purple-300 text-sm"
+                    className="mt-4 flex items-center justify-center gap-2 text-purple-600 dark:text-purple-300 text-sm transition-colors duration-200"
                     animate={{ opacity: [0.5, 1, 0.5] }}
                     transition={{ duration: 2, repeat: Infinity }}
                   >
