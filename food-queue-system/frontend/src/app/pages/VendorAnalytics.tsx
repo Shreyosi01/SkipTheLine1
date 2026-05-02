@@ -70,14 +70,14 @@ export const VendorAnalytics: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-white dark:bg-gray-900 pt-20 pb-12 transition-colors duration-200">
+    <div className="min-h-screen bg-gray-900 pt-20 pb-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <motion.button
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           whileHover={{ x: -5 }}
           onClick={() => navigate('/vendor')}
-          className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white mb-6 transition-colors"
+          className="flex items-center gap-2 text-gray-400 hover:text-white mb-6 transition-colors"
         >
           <ArrowLeft className="w-5 h-5" />
           <span>Back to Dashboard</span>
@@ -88,8 +88,8 @@ export const VendorAnalytics: React.FC = () => {
           animate={{ opacity: 1, y: 0 }}
           className="mb-8"
         >
-          <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-2">Analytics</h1>
-          <p className="text-gray-600 dark:text-gray-400">Track your performance and insights</p>
+          <h1 className="text-4xl font-bold text-white mb-2">Analytics</h1>
+          <p className="text-gray-400">Track your performance and insights</p>
         </motion.div>
 
         {/* Stats Grid */}
@@ -102,20 +102,20 @@ export const VendorAnalytics: React.FC = () => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.1 }}
-                className="bg-gray-50 dark:bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-200 dark:border-purple-500/20 transition-colors duration-200"
+                className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-purple-500/20"
               >
                 <div className="flex items-center justify-between mb-4">
-                  <Icon className="w-8 h-8 text-purple-600 dark:text-purple-400" />
+                  <Icon className="w-8 h-8 text-purple-400" />
                   <span
                     className={`text-sm font-semibold ${
-                      stat.positive ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                      stat.positive ? 'text-green-400' : 'text-red-400'
                     }`}
                   >
                     {stat.change}
                   </span>
                 </div>
-                <p className="text-gray-600 dark:text-gray-400 text-sm mb-1">{stat.label}</p>
-                <p className="text-3xl font-bold text-gray-900 dark:text-white">{stat.value}</p>
+                <p className="text-gray-400 text-sm mb-1">{stat.label}</p>
+                <p className="text-3xl font-bold text-white">{stat.value}</p>
               </motion.div>
             );
           })}
@@ -128,20 +128,19 @@ export const VendorAnalytics: React.FC = () => {
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.4 }}
-            className="bg-gray-50 dark:bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-200 dark:border-purple-500/20 transition-colors duration-200"
+            className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-purple-500/20"
           >
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">Revenue Over Time</h3>
+            <h3 className="text-xl font-semibold text-white mb-6">Revenue Over Time</h3>
             <ResponsiveContainer width="100%" height={300}>
               <LineChart data={revenueData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis dataKey="time" stroke="#6b7280" />
-                <YAxis stroke="#6b7280" />
+                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                <XAxis dataKey="time" stroke="#9ca3af" />
+                <YAxis stroke="#9ca3af" />
                 <Tooltip
                   contentStyle={{
-                    backgroundColor: '#f3f4f6',
-                    border: '1px solid #e5e7eb',
+                    backgroundColor: '#1f2937',
+                    border: '1px solid #6b21a8',
                     borderRadius: '8px',
-                    color: '#111827',
                   }}
                 />
                 <Line
@@ -166,20 +165,19 @@ export const VendorAnalytics: React.FC = () => {
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.5 }}
-            className="bg-gray-50 dark:bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-200 dark:border-purple-500/20 transition-colors duration-200"
+            className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-purple-500/20"
           >
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">Orders Per Hour</h3>
+            <h3 className="text-xl font-semibold text-white mb-6">Orders Per Hour</h3>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={ordersPerHour}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis dataKey="hour" stroke="#6b7280" />
-                <YAxis stroke="#6b7280" />
+                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                <XAxis dataKey="hour" stroke="#9ca3af" />
+                <YAxis stroke="#9ca3af" />
                 <Tooltip
                   contentStyle={{
-                    backgroundColor: '#f3f4f6',
-                    border: '1px solid #e5e7eb',
+                    backgroundColor: '#1f2937',
+                    border: '1px solid #6b21a8',
                     borderRadius: '8px',
-                    color: '#111827',
                   }}
                 />
                 <Bar dataKey="orders" fill="url(#colorOrders)" radius={[8, 8, 0, 0]} />
@@ -199,9 +197,9 @@ export const VendorAnalytics: React.FC = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.6 }}
-          className="bg-gray-50 dark:bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-200 dark:border-purple-500/20 transition-colors duration-200"
+          className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-purple-500/20"
         >
-          <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">Popular Categories</h3>
+          <h3 className="text-xl font-semibold text-white mb-6">Popular Categories</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
@@ -221,10 +219,9 @@ export const VendorAnalytics: React.FC = () => {
                 </Pie>
                 <Tooltip
                   contentStyle={{
-                    backgroundColor: '#f3f4f6',
-                    border: '1px solid #e5e7eb',
+                    backgroundColor: '#1f2937',
+                    border: '1px solid #6b21a8',
                     borderRadius: '8px',
-                    color: '#111827',
                   }}
                 />
               </PieChart>
@@ -244,11 +241,11 @@ export const VendorAnalytics: React.FC = () => {
                       className="w-4 h-4 rounded-full"
                       style={{ backgroundColor: category.color }}
                     />
-                    <span className="text-gray-700 dark:text-gray-300">{category.name}</span>
+                    <span className="text-gray-300">{category.name}</span>
                   </div>
                   <div className="flex items-center gap-4">
-                    <span className="text-gray-900 dark:text-white font-semibold">{category.value}%</span>
-                    <div className="w-32 h-2 bg-gray-300 dark:bg-gray-700 rounded-full overflow-hidden">
+                    <span className="text-white font-semibold">{category.value}%</span>
+                    <div className="w-32 h-2 bg-gray-700 rounded-full overflow-hidden">
                       <motion.div
                         initial={{ width: 0 }}
                         animate={{ width: `${category.value}%` }}
@@ -269,16 +266,16 @@ export const VendorAnalytics: React.FC = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.8 }}
-          className="mt-6 bg-gradient-to-r from-green-100 dark:from-green-500/10 to-emerald-100 dark:to-emerald-500/10 backdrop-blur-sm rounded-xl p-6 border border-green-300 dark:border-green-500/30 transition-colors duration-200"
+          className="mt-6 bg-gradient-to-r from-green-500/10 to-emerald-500/10 backdrop-blur-sm rounded-xl p-6 border border-green-500/30"
         >
           <div className="flex items-start gap-4">
             <div className="w-12 h-12 rounded-full bg-gradient-to-r from-green-500 to-emerald-500 flex items-center justify-center flex-shrink-0">
               <TrendingUp className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Peak Hours Insight</h3>
-              <p className="text-gray-700 dark:text-gray-300">
-                Your busiest hours are between <span className="text-green-700 dark:text-green-400 font-semibold">12PM - 2PM</span>.
+              <h3 className="text-xl font-semibold text-white mb-2">Peak Hours Insight</h3>
+              <p className="text-gray-300">
+                Your busiest hours are between <span className="text-green-400 font-semibold">12PM - 2PM</span>.
                 Consider adding extra staff during this time to reduce wait times and improve customer satisfaction.
               </p>
             </div>

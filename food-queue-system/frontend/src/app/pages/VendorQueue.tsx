@@ -31,24 +31,18 @@ const QueueItem: React.FC<QueueItemProps> = ({ order, index, moveItem }) => {
     },
   });
 
-  const ref = React.useRef<HTMLDivElement>(null);
-
-  React.useEffect(() => {
-    drag(drop(ref));
-  }, [drag, drop]);
-
   return (
     <motion.div
-      ref={ref}
+      ref={(node) => drag(drop(node))}
       layout
       initial={{ opacity: 0, x: -20 }}
       animate={{ opacity: isDragging ? 0.5 : 1, x: 0 }}
       transition={{ delay: index * 0.05 }}
-      className="bg-gray-50 dark:bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-200 dark:border-purple-500/20 hover:border-gray-300 dark:hover:border-purple-500/50 transition-all cursor-move duration-200"
+      className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-purple-500/20 hover:border-purple-500/50 transition-all cursor-move"
     >
       <div className="flex items-center gap-4">
         {/* Drag Handle */}
-        <GripVertical className="w-5 h-5 text-gray-400 dark:text-gray-500" />
+        <GripVertical className="w-5 h-5 text-gray-500" />
 
         {/* Position Number */}
         <div className="w-10 h-10 rounded-full bg-gradient-to-r from-green-500 to-emerald-500 flex items-center justify-center text-white font-bold">
@@ -62,27 +56,27 @@ const QueueItem: React.FC<QueueItemProps> = ({ order, index, moveItem }) => {
 
         {/* Order Info */}
         <div className="flex-1">
-          <p className="text-gray-900 dark:text-white font-semibold">{order.items.length} items</p>
-          <p className="text-gray-600 dark:text-gray-400 text-sm">
+          <p className="text-white font-semibold">{order.items.length} items</p>
+          <p className="text-gray-400 text-sm">
             {new Date(order.timestamp).toLocaleTimeString()}
           </p>
         </div>
 
         {/* Status Badge */}
         <span
-          className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors duration-200 ${
+          className={`px-3 py-1 rounded-full text-xs font-semibold ${
             order.status === 'placed'
-              ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400 border border-blue-300 dark:border-blue-500/50'
+              ? 'bg-blue-500/20 text-blue-400'
               : order.status === 'preparing'
-              ? 'bg-yellow-100 dark:bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 border border-yellow-300 dark:border-yellow-500/50'
-              : 'bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 border border-green-300 dark:border-green-500/50'
+              ? 'bg-yellow-500/20 text-yellow-400'
+              : 'bg-green-500/20 text-green-400'
           }`}
         >
           {order.status}
         </span>
 
         {/* Wait Time */}
-        <div className="flex items-center gap-2 text-purple-700 dark:text-purple-300 transition-colors duration-200">
+        <div className="flex items-center gap-2 text-purple-300">
           <Clock className="w-4 h-4" />
           <span className="text-sm">{order.estimatedTime}m</span>
         </div>
@@ -111,14 +105,14 @@ export const VendorQueue: React.FC = () => {
 
   return (
     <DndProvider backend={HTML5Backend}>
-      <div className="min-h-screen bg-white dark:bg-gray-900 pt-20 pb-12 transition-colors duration-200">
+      <div className="min-h-screen bg-gray-900 pt-20 pb-12">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <motion.button
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             whileHover={{ x: -5 }}
             onClick={() => navigate('/vendor')}
-            className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white mb-6 transition-colors"
+            className="flex items-center gap-2 text-gray-400 hover:text-white mb-6 transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
             <span>Back to Dashboard</span>
@@ -129,8 +123,8 @@ export const VendorQueue: React.FC = () => {
             animate={{ opacity: 1, y: 0 }}
             className="mb-8"
           >
-            <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-2">Queue Management</h1>
-            <p className="text-gray-600 dark:text-gray-400">Drag and drop to reorder the queue</p>
+            <h1 className="text-4xl font-bold text-white mb-2">Queue Management</h1>
+            <p className="text-gray-400">Drag and drop to reorder the queue</p>
           </motion.div>
 
           {/* Queue Stats */}
@@ -138,33 +132,33 @@ export const VendorQueue: React.FC = () => {
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-gradient-to-br from-blue-100 dark:from-blue-500/20 to-cyan-100 dark:to-cyan-500/20 backdrop-blur-sm rounded-xl p-6 border border-blue-300 dark:border-blue-500/30 transition-colors duration-200"
+              className="bg-gradient-to-br from-blue-500/20 to-cyan-500/20 backdrop-blur-sm rounded-xl p-6 border border-blue-500/30"
             >
-              <Users className="w-8 h-8 text-blue-600 dark:text-blue-400 mb-3" />
-              <p className="text-gray-600 dark:text-gray-400 text-sm mb-1">Total in Queue</p>
-              <p className="text-3xl font-bold text-gray-900 dark:text-white">{queueOrders.length}</p>
+              <Users className="w-8 h-8 text-blue-400 mb-3" />
+              <p className="text-gray-400 text-sm mb-1">Total in Queue</p>
+              <p className="text-3xl font-bold text-white">{queueOrders.length}</p>
             </motion.div>
 
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
-              className="bg-gradient-to-br from-purple-100 dark:from-purple-500/20 to-pink-100 dark:to-pink-500/20 backdrop-blur-sm rounded-xl p-6 border border-purple-300 dark:border-purple-500/30 transition-colors duration-200"
+              className="bg-gradient-to-br from-purple-500/20 to-pink-500/20 backdrop-blur-sm rounded-xl p-6 border border-purple-500/30"
             >
-              <Clock className="w-8 h-8 text-purple-600 dark:text-purple-400 mb-3" />
-              <p className="text-gray-600 dark:text-gray-400 text-sm mb-1">Total Wait Time</p>
-              <p className="text-3xl font-bold text-gray-900 dark:text-white">{totalWaitTime} min</p>
+              <Clock className="w-8 h-8 text-purple-400 mb-3" />
+              <p className="text-gray-400 text-sm mb-1">Total Wait Time</p>
+              <p className="text-3xl font-bold text-white">{totalWaitTime} min</p>
             </motion.div>
 
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
-              className="bg-gradient-to-br from-green-100 dark:from-green-500/20 to-emerald-100 dark:to-emerald-500/20 backdrop-blur-sm rounded-xl p-6 border border-green-300 dark:border-green-500/30 transition-colors duration-200"
+              className="bg-gradient-to-br from-green-500/20 to-emerald-500/20 backdrop-blur-sm rounded-xl p-6 border border-green-500/30"
             >
-              <Clock className="w-8 h-8 text-green-600 dark:text-green-400 mb-3" />
-              <p className="text-gray-600 dark:text-gray-400 text-sm mb-1">Avg Wait Time</p>
-              <p className="text-3xl font-bold text-gray-900 dark:text-white">
+              <Clock className="w-8 h-8 text-green-400 mb-3" />
+              <p className="text-gray-400 text-sm mb-1">Avg Wait Time</p>
+              <p className="text-3xl font-bold text-white">
                 {queueOrders.length > 0 ? Math.round(totalWaitTime / queueOrders.length) : 0} min
               </p>
             </motion.div>
@@ -177,7 +171,7 @@ export const VendorQueue: React.FC = () => {
             transition={{ delay: 0.3 }}
             className="mb-6"
           >
-            <div className="bg-gray-100 dark:bg-gray-800/30 rounded-xl p-4 border border-gray-300 dark:border-purple-500/20 transition-colors duration-200">
+            <div className="bg-gray-800/30 rounded-xl p-4 border border-purple-500/20">
               <div className="flex items-center gap-2 overflow-x-auto pb-2">
                 {queueOrders.map((order, i) => (
                   <motion.div
@@ -203,13 +197,13 @@ export const VendorQueue: React.FC = () => {
               animate={{ opacity: 1 }}
               className="text-center py-20"
             >
-              <Users className="w-20 h-20 mx-auto mb-4 text-gray-400 dark:text-gray-600" />
-              <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">No orders in queue</h2>
-              <p className="text-gray-600 dark:text-gray-400">Orders will appear here as they come in</p>
+              <Users className="w-20 h-20 mx-auto mb-4 text-gray-600" />
+              <h2 className="text-2xl font-semibold text-white mb-2">No orders in queue</h2>
+              <p className="text-gray-400">Orders will appear here as they come in</p>
             </motion.div>
           ) : (
             <div className="space-y-4">
-              <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
+              <p className="text-gray-400 text-sm mb-4">
                 💡 Drag and drop orders to change their priority in the queue
               </p>
               {queueOrders.map((order, index) => (
