@@ -1,77 +1,153 @@
-import React from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { motion } from 'motion/react';
-import { ArrowLeft, TrendingUp, DollarSign, Package, Clock } from 'lucide-react';
+import { ArrowLeft, TrendingUp, IndianRupee, Package, ShoppingBag } from 'lucide-react';
 import { useNavigate } from 'react-router';
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import {
+  LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  Tooltip, ResponsiveContainer, PieChart, Pie, Cell,
+} from 'recharts';
+import { useApp } from '../context/AppContext';
 
+// ── Colours for pie chart slices ─────────────────────────────────────────────
+const STATUS_COLORS: Record<string, string> = {
+  placed:    '#3b82f6',
+  preparing: '#eab308',
+  ready:     '#22c55e',
+  completed: '#a855f7',
+};
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Group orders into 1-hour buckets by created_at and sum revenue per bucket. */
+const buildRevenueByHour = (orders: any[]) => {
+  const buckets: Record<string, number> = {};
+  orders.forEach(o => {
+    const h = new Date(o.timestamp).getHours();
+    const label = `${h % 12 === 0 ? 12 : h % 12}${h < 12 ? 'AM' : 'PM'}`;
+    buckets[label] = (buckets[label] ?? 0) + o.total;
+  });
+  // Sort chronologically (0-23h)
+  return Object.entries(buckets)
+    .sort((a, b) => {
+      const toH = (s: string) => {
+        const n = parseInt(s);
+        const pm = s.endsWith('PM');
+        return pm ? (n === 12 ? 12 : n + 12) : (n === 12 ? 0 : n);
+      };
+      return toH(a[0]) - toH(b[0]);
+    })
+    .map(([time, revenue]) => ({ time, revenue: Math.round(revenue) }));
+};
+
+/** Aggregate order items into top-N by quantity sold. */
+const buildTopItems = (orders: any[], topN = 6) => {
+  const map: Record<string, number> = {};
+  orders.forEach(o =>
+    o.items.forEach((i: any) => {
+      map[i.name] = (map[i.name] ?? 0) + i.quantity;
+    })
+  );
+  return Object.entries(map)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, topN)
+    .map(([name, qty]) => ({ name, qty }));
+};
+
+/** Count orders by status for pie chart. */
+const buildStatusBreakdown = (orders: any[]) =>
+  Object.entries(
+    orders.reduce<Record<string, number>>((acc, o) => {
+      acc[o.status] = (acc[o.status] ?? 0) + 1;
+      return acc;
+    }, {})
+  ).map(([status, count]) => ({ status, count }));
+
+// ── Empty state ───────────────────────────────────────────────────────────────
+const EmptyChart: React.FC<{ message: string }> = ({ message }) => (
+  <div className="flex items-center justify-center h-[220px] text-gray-400 dark:text-gray-500 text-sm">
+    {message}
+  </div>
+);
+
+// ── Tooltip shared style ──────────────────────────────────────────────────────
+const tooltipStyle = {
+  backgroundColor: 'var(--color-background-secondary, #f9fafb)',
+  border: '1px solid #e5e7eb',
+  borderRadius: '8px',
+  color: '#111827',
+  fontSize: '13px',
+};
+
+// ── Main page ─────────────────────────────────────────────────────────────────
 export const VendorAnalytics: React.FC = () => {
   const navigate = useNavigate();
+  const { orders, user, fetchVendorOrders, getVendorStall } = useApp();
 
-  // Mock data for charts
-  const revenueData = [
-    { time: '9AM', revenue: 120 },
-    { time: '10AM', revenue: 280 },
-    { time: '11AM', revenue: 450 },
-    { time: '12PM', revenue: 680 },
-    { time: '1PM', revenue: 920 },
-    { time: '2PM', revenue: 750 },
-    { time: '3PM', revenue: 580 },
-    { time: '4PM', revenue: 420 },
-  ];
+  // Refresh on mount so data is always fresh
+  useEffect(() => {
+    fetchVendorOrders();
+  }, []);
 
-  const ordersPerHour = [
-    { hour: '9AM', orders: 12 },
-    { hour: '10AM', orders: 28 },
-    { hour: '11AM', orders: 45 },
-    { hour: '12PM', orders: 68 },
-    { hour: '1PM', orders: 82 },
-    { hour: '2PM', orders: 65 },
-    { hour: '3PM', orders: 48 },
-    { hour: '4PM', orders: 32 },
-  ];
+  const vendorStall = getVendorStall();
+  const stallId = vendorStall?.id ?? user?.stallId;
 
-  const categoryData = [
-    { name: 'Burgers', value: 35, color: '#f97316' },
-    { name: 'Pizza', value: 25, color: '#ef4444' },
-    { name: 'Tacos', value: 20, color: '#a855f7' },
-    { name: 'Sushi', value: 15, color: '#3b82f6' },
-    { name: 'Other', value: 5, color: '#6b7280' },
-  ];
+  // All orders that belong to this vendor's stall
+  const vendorOrders = useMemo(
+    () => orders.filter(o => o.stallId === stallId),
+    [orders, stallId]
+  );
 
+  // ── Derived metrics ────────────────────────────────────────────────────────
+  const totalRevenue   = useMemo(() => vendorOrders.reduce((s, o) => s + o.total, 0), [vendorOrders]);
+  const totalOrders    = vendorOrders.length;
+  const avgOrderValue  = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+  const completedCount = useMemo(() => vendorOrders.filter(o => o.status === 'completed').length, [vendorOrders]);
+
+  const revenueByHour    = useMemo(() => buildRevenueByHour(vendorOrders),    [vendorOrders]);
+  const topItems         = useMemo(() => buildTopItems(vendorOrders),          [vendorOrders]);
+  const statusBreakdown  = useMemo(() => buildStatusBreakdown(vendorOrders),  [vendorOrders]);
+
+  const peakHour = revenueByHour.length
+    ? revenueByHour.reduce((a, b) => (a.revenue > b.revenue ? a : b)).time
+    : null;
+
+  // ── Stat cards ─────────────────────────────────────────────────────────────
   const stats = [
     {
-      icon: DollarSign,
+      icon: IndianRupee,
       label: 'Total Revenue',
-      value: '₹24,250',
-      change: '+12.5%',
-      positive: true,
+      value: `₹${totalRevenue.toFixed(2)}`,
+      color: 'from-green-500 to-emerald-500',
+      sub: `${totalOrders} order${totalOrders !== 1 ? 's' : ''}`,
     },
     {
       icon: Package,
       label: 'Total Orders',
-      value: '380',
-      change: '+8.2%',
-      positive: true,
-    },
-    {
-      icon: Clock,
-      label: 'Avg Wait Time',
-      value: '12 min',
-      change: '-5.3%',
-      positive: true,
+      value: totalOrders,
+      color: 'from-blue-500 to-cyan-500',
+      sub: `${completedCount} completed`,
     },
     {
       icon: TrendingUp,
-      label: 'Customer Satisfaction',
-      value: '4.8/5',
-      change: '+0.3',
-      positive: true,
+      label: 'Avg Order Value',
+      value: `₹${avgOrderValue.toFixed(2)}`,
+      color: 'from-purple-500 to-pink-500',
+      sub: 'per order',
+    },
+    {
+      icon: ShoppingBag,
+      label: 'Completion Rate',
+      value: totalOrders > 0 ? `${Math.round((completedCount / totalOrders) * 100)}%` : '—',
+      color: 'from-orange-500 to-amber-500',
+      sub: `${completedCount} of ${totalOrders}`,
     },
   ];
 
   return (
     <div className="min-h-screen bg-white dark:bg-gray-900 pt-20 pb-12 transition-colors duration-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+
+        {/* Back */}
         <motion.button
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
@@ -83,207 +159,223 @@ export const VendorAnalytics: React.FC = () => {
           <span>Back to Dashboard</span>
         </motion.button>
 
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-8"
-        >
+        {/* Header */}
+        <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
           <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-2">Analytics</h1>
-          <p className="text-gray-600 dark:text-gray-400">Track your performance and insights</p>
+          <p className="text-gray-600 dark:text-gray-400">
+            Live data from your {totalOrders} order{totalOrders !== 1 ? 's' : ''}
+            {vendorStall ? ` · ${vendorStall.stallName}` : ''}
+          </p>
         </motion.div>
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {stats.map((stat, index) => {
-            const Icon = stat.icon;
-            return (
+        {/* No orders state */}
+        {totalOrders === 0 && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="text-center py-24 bg-gray-50 dark:bg-gray-800/50 rounded-2xl border border-gray-200 dark:border-gray-700/50 mb-8"
+          >
+            <Package className="w-16 h-16 mx-auto mb-4 text-gray-300 dark:text-gray-600" />
+            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">No orders yet</h3>
+            <p className="text-gray-500 dark:text-gray-400 max-w-sm mx-auto text-sm">
+              Analytics will appear here once customers start placing orders at your stall.
+            </p>
+          </motion.div>
+        )}
+
+        {totalOrders > 0 && (
+          <>
+            {/* Stat cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+              {stats.map((stat, index) => {
+                const Icon = stat.icon;
+                return (
+                  <motion.div
+                    key={stat.label}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.08 }}
+                    whileHover={{ y: -4, scale: 1.02 }}
+                    className="bg-gray-50 dark:bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-200 dark:border-purple-500/20 transition-colors duration-200"
+                  >
+                    <div className={`w-12 h-12 rounded-lg bg-gradient-to-r ${stat.color} flex items-center justify-center mb-4`}>
+                      <Icon className="w-6 h-6 text-white" />
+                    </div>
+                    <p className="text-gray-600 dark:text-gray-400 text-sm mb-1">{stat.label}</p>
+                    <p className={`text-3xl font-bold bg-gradient-to-r ${stat.color} bg-clip-text text-transparent`}>
+                      {stat.value}
+                    </p>
+                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{stat.sub}</p>
+                  </motion.div>
+                );
+              })}
+            </div>
+
+            {/* Charts row */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+
+              {/* Revenue by hour */}
               <motion.div
-                key={stat.label}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.35 }}
+                className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-6 border border-gray-200 dark:border-purple-500/20 transition-colors duration-200"
+              >
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">Revenue by Hour</h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-5">Based on order placement time</p>
+                {revenueByHour.length < 2 ? (
+                  <EmptyChart message="Need orders across multiple hours to show this chart" />
+                ) : (
+                  <ResponsiveContainer width="100%" height={240}>
+                    <LineChart data={revenueByHour}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                      <XAxis dataKey="time" stroke="#9ca3af" tick={{ fontSize: 11 }} />
+                      <YAxis stroke="#9ca3af" tick={{ fontSize: 11 }} tickFormatter={v => `₹${v}`} />
+                      <Tooltip
+                        contentStyle={tooltipStyle}
+                        formatter={(v: number) => [`₹${v}`, 'Revenue']}
+                      />
+                      <defs>
+                        <linearGradient id="revLine" x1="0" y1="0" x2="1" y2="0">
+                          <stop offset="0%" stopColor="#22c55e" />
+                          <stop offset="100%" stopColor="#10b981" />
+                        </linearGradient>
+                      </defs>
+                      <Line
+                        type="monotone"
+                        dataKey="revenue"
+                        stroke="url(#revLine)"
+                        strokeWidth={3}
+                        dot={{ fill: '#22c55e', r: 4 }}
+                        activeDot={{ r: 6 }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                )}
+              </motion.div>
+
+              {/* Order status breakdown */}
+              <motion.div
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.4 }}
+                className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-6 border border-gray-200 dark:border-purple-500/20 transition-colors duration-200"
+              >
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">Orders by Status</h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-5">Current breakdown across all orders</p>
+                <div className="flex items-center gap-6">
+                  <ResponsiveContainer width="50%" height={200}>
+                    <PieChart>
+                      <Pie
+                        data={statusBreakdown}
+                        dataKey="count"
+                        nameKey="status"
+                        cx="50%"
+                        cy="50%"
+                        outerRadius={80}
+                        innerRadius={45}
+                      >
+                        {statusBreakdown.map((entry) => (
+                          <Cell
+                            key={entry.status}
+                            fill={STATUS_COLORS[entry.status] ?? '#6b7280'}
+                          />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        contentStyle={tooltipStyle}
+                        formatter={(v: number, _: any, p: any) => [v, p.payload.status]}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+
+                  {/* Legend */}
+                  <div className="flex-1 space-y-2.5">
+                    {statusBreakdown.map(entry => (
+                      <div key={entry.status} className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="w-3 h-3 rounded-full flex-shrink-0"
+                            style={{ backgroundColor: STATUS_COLORS[entry.status] ?? '#6b7280' }}
+                          />
+                          <span className="text-sm text-gray-700 dark:text-gray-300 capitalize">
+                            {entry.status}
+                          </span>
+                        </div>
+                        <span className="text-sm font-bold text-gray-900 dark:text-white">
+                          {entry.count}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+
+            {/* Top selling items */}
+            {topItems.length > 0 && (
+              <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
-                className="bg-gray-50 dark:bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-200 dark:border-purple-500/20 transition-colors duration-200"
+                transition={{ delay: 0.45 }}
+                className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-6 border border-gray-200 dark:border-purple-500/20 mb-6 transition-colors duration-200"
               >
-                <div className="flex items-center justify-between mb-4">
-                  <Icon className="w-8 h-8 text-purple-600 dark:text-purple-400" />
-                  <span
-                    className={`text-sm font-semibold ${
-                      stat.positive ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
-                    }`}
-                  >
-                    {stat.change}
-                  </span>
-                </div>
-                <p className="text-gray-600 dark:text-gray-400 text-sm mb-1">{stat.label}</p>
-                <p className="text-3xl font-bold text-gray-900 dark:text-white">{stat.value}</p>
-              </motion.div>
-            );
-          })}
-        </div>
-
-        {/* Charts Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          {/* Revenue Chart */}
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.4 }}
-            className="bg-gray-50 dark:bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-200 dark:border-purple-500/20 transition-colors duration-200"
-          >
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">Revenue Over Time</h3>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={revenueData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis dataKey="time" stroke="#6b7280" />
-                <YAxis stroke="#6b7280" />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#f3f4f6',
-                    border: '1px solid #e5e7eb',
-                    borderRadius: '8px',
-                    color: '#111827',
-                  }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="revenue"
-                  stroke="url(#colorRevenue)"
-                  strokeWidth={3}
-                  dot={{ fill: '#f97316', r: 4 }}
-                />
-                <defs>
-                  <linearGradient id="colorRevenue" x1="0" y1="0" x2="1" y2="0">
-                    <stop offset="0%" stopColor="#f97316" />
-                    <stop offset="100%" stopColor="#ef4444" />
-                  </linearGradient>
-                </defs>
-              </LineChart>
-            </ResponsiveContainer>
-          </motion.div>
-
-          {/* Orders Per Hour */}
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.5 }}
-            className="bg-gray-50 dark:bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-200 dark:border-purple-500/20 transition-colors duration-200"
-          >
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">Orders Per Hour</h3>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={ordersPerHour}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis dataKey="hour" stroke="#6b7280" />
-                <YAxis stroke="#6b7280" />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#f3f4f6',
-                    border: '1px solid #e5e7eb',
-                    borderRadius: '8px',
-                    color: '#111827',
-                  }}
-                />
-                <Bar dataKey="orders" fill="url(#colorOrders)" radius={[8, 8, 0, 0]} />
-                <defs>
-                  <linearGradient id="colorOrders" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#a855f7" />
-                    <stop offset="100%" stopColor="#ec4899" />
-                  </linearGradient>
-                </defs>
-              </BarChart>
-            </ResponsiveContainer>
-          </motion.div>
-        </div>
-
-        {/* Category Distribution */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.6 }}
-          className="bg-gray-50 dark:bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-200 dark:border-purple-500/20 transition-colors duration-200"
-        >
-          <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">Popular Categories</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={categoryData}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                  outerRadius={100}
-                  fill="#8884d8"
-                  dataKey="value"
-                >
-                  {categoryData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#f3f4f6',
-                    border: '1px solid #e5e7eb',
-                    borderRadius: '8px',
-                    color: '#111827',
-                  }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-
-            <div className="space-y-4">
-              {categoryData.map((category, index) => (
-                <motion.div
-                  key={category.name}
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.7 + index * 0.1 }}
-                  className="flex items-center justify-between"
-                >
-                  <div className="flex items-center gap-3">
-                    <div
-                      className="w-4 h-4 rounded-full"
-                      style={{ backgroundColor: category.color }}
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">Top Selling Items</h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-5">By total quantity ordered</p>
+                <ResponsiveContainer width="100%" height={220}>
+                  <BarChart data={topItems} layout="vertical" margin={{ left: 8, right: 24 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" horizontal={false} />
+                    <XAxis type="number" stroke="#9ca3af" tick={{ fontSize: 11 }} allowDecimals={false} />
+                    <YAxis
+                      type="category"
+                      dataKey="name"
+                      stroke="#9ca3af"
+                      tick={{ fontSize: 12 }}
+                      width={110}
                     />
-                    <span className="text-gray-700 dark:text-gray-300">{category.name}</span>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <span className="text-gray-900 dark:text-white font-semibold">{category.value}%</span>
-                    <div className="w-32 h-2 bg-gray-300 dark:bg-gray-700 rounded-full overflow-hidden">
-                      <motion.div
-                        initial={{ width: 0 }}
-                        animate={{ width: `${category.value}%` }}
-                        transition={{ delay: 0.8 + index * 0.1, duration: 0.5 }}
-                        className="h-full"
-                        style={{ backgroundColor: category.color }}
-                      />
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-          </div>
-        </motion.div>
+                    <Tooltip
+                      contentStyle={tooltipStyle}
+                      formatter={(v: number) => [v, 'Units sold']}
+                    />
+                    <defs>
+                      <linearGradient id="itemBar" x1="0" y1="0" x2="1" y2="0">
+                        <stop offset="0%" stopColor="#a855f7" />
+                        <stop offset="100%" stopColor="#ec4899" />
+                      </linearGradient>
+                    </defs>
+                    <Bar dataKey="qty" fill="url(#itemBar)" radius={[0, 6, 6, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </motion.div>
+            )}
 
-        {/* Peak Hours Info */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.8 }}
-          className="mt-6 bg-gradient-to-r from-green-100 dark:from-green-500/10 to-emerald-100 dark:to-emerald-500/10 backdrop-blur-sm rounded-xl p-6 border border-green-300 dark:border-green-500/30 transition-colors duration-200"
-        >
-          <div className="flex items-start gap-4">
-            <div className="w-12 h-12 rounded-full bg-gradient-to-r from-green-500 to-emerald-500 flex items-center justify-center flex-shrink-0">
-              <TrendingUp className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Peak Hours Insight</h3>
-              <p className="text-gray-700 dark:text-gray-300">
-                Your busiest hours are between <span className="text-green-700 dark:text-green-400 font-semibold">12PM - 2PM</span>.
-                Consider adding extra staff during this time to reduce wait times and improve customer satisfaction.
-              </p>
-            </div>
-          </div>
-        </motion.div>
+            {/* Peak hour insight */}
+            {peakHour && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.5 }}
+                className="bg-gradient-to-r from-green-50 dark:from-green-900/20 to-emerald-50 dark:to-emerald-900/20 rounded-xl p-6 border border-green-200 dark:border-green-700/40 transition-colors duration-200"
+              >
+                <div className="flex items-start gap-4">
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-r from-green-500 to-emerald-500 flex items-center justify-center flex-shrink-0">
+                    <TrendingUp className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
+                      Peak Hour Insight
+                    </h3>
+                    <p className="text-gray-700 dark:text-gray-300 text-sm">
+                      Your highest revenue hour is{' '}
+                      <span className="text-green-700 dark:text-green-400 font-semibold">{peakHour}</span>.
+                      Make sure your most popular items are fully stocked and available during this time.
+                    </p>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </>
+        )}
       </div>
     </div>
   );

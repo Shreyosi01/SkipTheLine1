@@ -13,12 +13,12 @@ import {
   CheckCircle2,
   Edit3,
   Image,
+  UtensilsCrossed,
 } from 'lucide-react';
 import { useApp, StallItem } from '../context/AppContext';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
 
-// ✅ Stall avatar options — same set as Profile used to show vendors
 const SHOP_AVATARS = [
   "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=150&h=150&fit=crop",
   "https://images.unsplash.com/photo-1552566626-52f8b828add9?w=150&h=150&fit=crop",
@@ -28,6 +28,15 @@ const SHOP_AVATARS = [
   "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=150&h=150&fit=crop",
   "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=150&h=150&fit=crop",
   "https://images.unsplash.com/photo-1550966871-3ed3cdb5ed0c?w=150&h=150&fit=crop",
+];
+
+// ✅ NEW: Category options — matches what StallCard and StallDetail display.
+// Values are lowercase to match the existing DB convention (old records used 'snacks').
+const CATEGORIES = [
+  { value: 'snacks',    label: '🍿 Snacks',    desc: 'Chips, puffs, chaat, finger foods' },
+  { value: 'meals',     label: '🍱 Meals',     desc: 'Rice, roti, full meals, tiffin' },
+  { value: 'beverages', label: '🥤 Beverages', desc: 'Juices, tea, coffee, shakes' },
+  { value: 'desserts',  label: '🍨 Desserts',  desc: 'Ice cream, sweets, cakes' },
 ];
 
 const generateId = () => `item_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
@@ -50,9 +59,12 @@ export const CreateStall: React.FC = () => {
   const [items, setItems] = useState<StallItem[]>(
     existingStall?.items.length ? existingStall.items : [emptyItem()]
   );
-  // ✅ Initialise avatar from existing stall image or user avatar
   const [selectedAvatar, setSelectedAvatar] = useState<string>(
     existingStall?.image || user?.avatar || ''
+  );
+  // ✅ NEW: category state — seeds from existing stall or defaults to 'snacks'
+  const [category, setCategory] = useState<string>(
+    existingStall?.category || 'snacks'
   );
   const [submitted, setSubmitted] = useState(false);
   const [focusedItem, setFocusedItem] = useState<string | null>(null);
@@ -62,6 +74,8 @@ export const CreateStall: React.FC = () => {
       setStallName(existingStall.stallName);
       setItems(existingStall.items.length ? existingStall.items : [emptyItem()]);
       setSelectedAvatar(existingStall.image || user?.avatar || '');
+      // ✅ NEW: restore saved category when editing
+      setCategory(existingStall.category || 'snacks');
     }
   }, [existingStall?.id]);
 
@@ -96,12 +110,12 @@ export const CreateStall: React.FC = () => {
     }
     try {
       if (isEditing && existingStall) {
-        // ✅ Pass selectedAvatar as the 5th argument
-        await updateStall(existingStall.id, stallName.trim(), validItems, 'snacks', selectedAvatar);
+        // ✅ UPDATED: passes real category instead of hardcoded 'snacks'
+        await updateStall(existingStall.id, stallName.trim(), validItems, category, selectedAvatar);
         toast.success('Stall updated successfully!');
       } else {
-        // ✅ Pass selectedAvatar as the 4th argument
-        await createStall(stallName.trim(), validItems, 'snacks', selectedAvatar);
+        // ✅ UPDATED: passes real category instead of hardcoded 'snacks'
+        await createStall(stallName.trim(), validItems, category, selectedAvatar);
         toast.success('Stall created successfully!');
       }
       setSubmitted(true);
@@ -191,7 +205,7 @@ export const CreateStall: React.FC = () => {
 
         <form onSubmit={handleSubmit} className="space-y-8">
 
-          {/* ✅ NEW: Stall Avatar Picker */}
+          {/* Stall Avatar Picker */}
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
@@ -201,10 +215,9 @@ export const CreateStall: React.FC = () => {
             <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-2">
               <Image className="w-4 h-4 text-green-500" />
               Stall Photo
-              <span className="text-gray-400 dark:text-gray-500 font-normal text-xs ml-1">(optional — shown as the stall background)</span>
+              <span className="text-gray-400 dark:text-gray-500 font-normal text-xs ml-1">(optional)</span>
             </label>
 
-            {/* Preview strip showing currently selected image */}
             {selectedAvatar && (
               <div className="mb-4 flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-xl border border-green-200 dark:border-green-700/40">
                 <img
@@ -239,12 +252,7 @@ export const CreateStall: React.FC = () => {
                       : 'border-gray-200 dark:border-gray-700 hover:border-green-300 dark:hover:border-green-600'
                   }`}
                 >
-                  <img
-                    src={avatarUrl}
-                    alt={`Stall photo ${index + 1}`}
-                    className="w-full h-full object-cover"
-                  />
-                  {/* Tick badge on selected */}
+                  <img src={avatarUrl} alt={`Stall photo ${index + 1}`} className="w-full h-full object-cover" />
                   {selectedAvatar === avatarUrl && (
                     <div className="absolute inset-0 bg-green-500/20 flex items-center justify-center">
                       <div className="w-7 h-7 rounded-full bg-green-500 flex items-center justify-center shadow-lg">
@@ -275,6 +283,52 @@ export const CreateStall: React.FC = () => {
               placeholder="e.g. Raj's Chaat Corner"
               className="w-full px-4 py-3.5 bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20 transition-all text-lg font-medium"
             />
+          </motion.div>
+
+          {/* ✅ NEW: Category Picker */}
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15 }}
+            className="bg-white dark:bg-gray-800/60 rounded-2xl p-6 border border-gray-200 dark:border-gray-700/50 shadow-sm"
+          >
+            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
+              <UtensilsCrossed className="w-4 h-4 text-green-500" />
+              Category <span className="text-red-400">*</span>
+            </label>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+              Shown on your stall card so customers can find you easily
+            </p>
+
+            {/* Card-style picker — easier to tap on mobile than a plain <select> */}
+            <div className="grid grid-cols-2 gap-3">
+              {CATEGORIES.map((cat) => (
+                <motion.button
+                  key={cat.value}
+                  type="button"
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => setCategory(cat.value)}
+                  className={`flex flex-col items-start p-4 rounded-xl border-2 text-left transition-all duration-200 ${
+                    category === cat.value
+                      ? 'border-green-500 bg-green-50 dark:bg-green-900/20 ring-2 ring-green-500/20'
+                      : 'border-gray-200 dark:border-gray-700 hover:border-green-300 dark:hover:border-green-700 bg-gray-50 dark:bg-gray-900/30'
+                  }`}
+                >
+                  <span className="text-lg mb-1">{cat.label}</span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400 leading-tight">{cat.desc}</span>
+                  {category === cat.value && (
+                    <motion.span
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-green-600 dark:text-green-400"
+                    >
+                      <CheckCircle2 className="w-3 h-3" /> Selected
+                    </motion.span>
+                  )}
+                </motion.button>
+              ))}
+            </div>
           </motion.div>
 
           {/* Items Section */}
