@@ -19,19 +19,52 @@ import { useApp, StallItem } from '../context/AppContext';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
 
-const SHOP_AVATARS = [
-  "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=150&h=150&fit=crop",
-  "https://images.unsplash.com/photo-1552566626-52f8b828add9?w=150&h=150&fit=crop",
-  "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=150&h=150&fit=crop",
-  "https://images.unsplash.com/photo-1513104890138-7c749659a591?w=150&h=150&fit=crop",
-  "https://images.unsplash.com/photo-1497935586351-b67a49e012bf?w=150&h=150&fit=crop",
-  "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=150&h=150&fit=crop",
-  "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=150&h=150&fit=crop",
-  "https://images.unsplash.com/photo-1550966871-3ed3cdb5ed0c?w=150&h=150&fit=crop",
-];
+// ── Category-specific photo sets ─────────────────────────────────────────────
+// 8 unique photos per category, all verified food/drink shots.
+const CATEGORY_AVATARS: Record<string, string[]> = {
+  snacks: [
+    "https://images.unsplash.com/photo-1601050690597-df0568f70950?w=150&h=150&fit=crop", // samosa
+    "https://images.unsplash.com/photo-1599490659213-e2b9527bd087?w=150&h=150&fit=crop", // chips bowl
+    "https://images.unsplash.com/photo-1574484284002-952d92456975?w=150&h=150&fit=crop", // nachos
+    "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=150&h=150&fit=crop", // burger
+    "https://images.unsplash.com/photo-1606728035253-49e8a23146de?w=150&h=150&fit=crop", // nuggets
+    "https://images.unsplash.com/photo-1626645738196-c2a7c87a8f58?w=150&h=150&fit=crop", // fried snacks
+    "https://images.unsplash.com/photo-1562967914-608f82629710?w=150&h=150&fit=crop", // finger food platter
+    "https://images.unsplash.com/photo-1513104890138-7c749659a591?w=150&h=150&fit=crop", // pizza slice
+  ],
+  meals: [
+    "https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=150&h=150&fit=crop", // biryani
+    "https://images.unsplash.com/photo-1546833999-b9f581a1996d?w=150&h=150&fit=crop", // thali bowl
+    "https://images.unsplash.com/photo-1565557623262-b51c2513a641?w=150&h=150&fit=crop", // Indian curry
+    "https://images.unsplash.com/photo-1512058564366-18510be2db19?w=150&h=150&fit=crop", // rice dish
+    "https://images.unsplash.com/photo-1596797038530-2c107229654b?w=150&h=150&fit=crop", // paneer dish
+    "https://images.unsplash.com/photo-1631515243349-e0cb75fb8d3a?w=150&h=150&fit=crop", // roti / bread
+    "https://images.unsplash.com/photo-1455619452474-d2be8b1e70cd?w=150&h=150&fit=crop", // chicken curry
+    "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=150&h=150&fit=crop", // loaded food spread
+  ],
+  beverages: [
+    "https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=150&h=150&fit=crop", // coffee cup
+    "https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=150&h=150&fit=crop", // smoothie
+    "https://images.unsplash.com/photo-1499638673689-79a0b5115d87?w=150&h=150&fit=crop", // latte art
+    "https://images.unsplash.com/photo-1571934811356-5cc061b6821f?w=150&h=150&fit=crop", // tea cup
+    "https://images.unsplash.com/photo-1544145945-f90425340c7e?w=150&h=150&fit=crop", // fresh juice
+    "https://images.unsplash.com/photo-1563227812-0ea4c22e6cc8?w=150&h=150&fit=crop", // milkshake
+    "https://images.unsplash.com/photo-1461023058943-07fcbe16d735?w=150&h=150&fit=crop", // iced drinks
+    "https://images.unsplash.com/photo-1600271886742-f049cd451bba?w=150&h=150&fit=crop", // fruit juice stall
+  ],
+  desserts: [
+    "https://images.unsplash.com/photo-1551024601-bec78aea704b?w=150&h=150&fit=crop", // dessert platter
+    "https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=150&h=150&fit=crop", // layered cake
+    "https://images.unsplash.com/photo-1551529834-525807d6b4f3?w=150&h=150&fit=crop", // Indian sweets / mithai
+    "https://images.unsplash.com/photo-1488477181946-6428a0291777?w=150&h=150&fit=crop", // pastry
+    "https://images.unsplash.com/photo-1565958011703-44f9829ba187?w=150&h=150&fit=crop", // donuts
+    "https://images.unsplash.com/photo-1576618148400-f54bed99fcfd?w=150&h=150&fit=crop", // macarons
+    "https://images.unsplash.com/photo-1571877227200-a0d98ea607e9?w=150&h=150&fit=crop", // chocolate dessert
+    "https://images.unsplash.com/photo-1563805042-7684c019e1cb?w=150&h=150&fit=crop", // ice cream scoops
+  ],
+};
 
-// ✅ NEW: Category options — matches what StallCard and StallDetail display.
-// Values are lowercase to match the existing DB convention (old records used 'snacks').
+// ── Category options ──────────────────────────────────────────────────────────
 const CATEGORIES = [
   { value: 'snacks',    label: '🍿 Snacks',    desc: 'Chips, puffs, chaat, finger foods' },
   { value: 'meals',     label: '🍱 Meals',     desc: 'Rice, roti, full meals, tiffin' },
@@ -62,7 +95,6 @@ export const CreateStall: React.FC = () => {
   const [selectedAvatar, setSelectedAvatar] = useState<string>(
     existingStall?.image || user?.avatar || ''
   );
-  // ✅ NEW: category state — seeds from existing stall or defaults to 'snacks'
   const [category, setCategory] = useState<string>(
     existingStall?.category || 'snacks'
   );
@@ -74,10 +106,17 @@ export const CreateStall: React.FC = () => {
       setStallName(existingStall.stallName);
       setItems(existingStall.items.length ? existingStall.items : [emptyItem()]);
       setSelectedAvatar(existingStall.image || user?.avatar || '');
-      // ✅ NEW: restore saved category when editing
       setCategory(existingStall.category || 'snacks');
     }
   }, [existingStall?.id]);
+
+  // Clear avatar on category switch only if it was a stock photo
+  useEffect(() => {
+    const allStockPhotos = Object.values(CATEGORY_AVATARS).flat();
+    if (allStockPhotos.includes(selectedAvatar)) {
+      setSelectedAvatar('');
+    }
+  }, [category]);
 
   const addItem = () => {
     const newItem = emptyItem();
@@ -110,11 +149,9 @@ export const CreateStall: React.FC = () => {
     }
     try {
       if (isEditing && existingStall) {
-        // ✅ UPDATED: passes real category instead of hardcoded 'snacks'
         await updateStall(existingStall.id, stallName.trim(), validItems, category, selectedAvatar);
         toast.success('Stall updated successfully!');
       } else {
-        // ✅ UPDATED: passes real category instead of hardcoded 'snacks'
         await createStall(stallName.trim(), validItems, category, selectedAvatar);
         toast.success('Stall created successfully!');
       }
@@ -148,6 +185,9 @@ export const CreateStall: React.FC = () => {
       </div>
     );
   }
+
+  const activePhotos = CATEGORY_AVATARS[category] ?? CATEGORY_AVATARS.snacks;
+  const activeCategoryLabel = CATEGORIES.find((c) => c.value === category)?.label ?? '';
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pt-20 pb-16 transition-colors duration-200">
@@ -212,11 +252,19 @@ export const CreateStall: React.FC = () => {
             transition={{ delay: 0.05 }}
             className="bg-white dark:bg-gray-800/60 rounded-2xl p-6 border border-gray-200 dark:border-gray-700/50 shadow-sm"
           >
-            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-2">
-              <Image className="w-4 h-4 text-green-500" />
-              Stall Photo
-              <span className="text-gray-400 dark:text-gray-500 font-normal text-xs ml-1">(optional)</span>
-            </label>
+            <div className="flex items-center justify-between mb-4">
+              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                <Image className="w-4 h-4 text-green-500" />
+                Stall Photo
+                <span className="text-gray-400 dark:text-gray-500 font-normal text-xs ml-1">(optional)</span>
+              </label>
+              <span className="text-xs text-gray-400 dark:text-gray-500">
+                Showing photos for{' '}
+                <span className="font-semibold text-green-600 dark:text-green-400">
+                  {activeCategoryLabel}
+                </span>
+              </span>
+            </div>
 
             {selectedAvatar && (
               <div className="mb-4 flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-xl border border-green-200 dark:border-green-700/40">
@@ -239,30 +287,47 @@ export const CreateStall: React.FC = () => {
               </div>
             )}
 
-            <div className="grid grid-cols-4 gap-3">
-              {SHOP_AVATARS.map((avatarUrl, index) => (
-                <motion.div
-                  key={index}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.97 }}
-                  onClick={() => setSelectedAvatar(avatarUrl)}
-                  className={`relative aspect-square cursor-pointer rounded-xl overflow-hidden border-2 transition-all duration-200 ${
-                    selectedAvatar === avatarUrl
-                      ? 'border-green-500 ring-2 ring-green-500/30 shadow-md shadow-green-500/20'
-                      : 'border-gray-200 dark:border-gray-700 hover:border-green-300 dark:hover:border-green-600'
-                  }`}
-                >
-                  <img src={avatarUrl} alt={`Stall photo ${index + 1}`} className="w-full h-full object-cover" />
-                  {selectedAvatar === avatarUrl && (
-                    <div className="absolute inset-0 bg-green-500/20 flex items-center justify-center">
-                      <div className="w-7 h-7 rounded-full bg-green-500 flex items-center justify-center shadow-lg">
-                        <CheckCircle2 className="w-4 h-4 text-white" />
+            {/* Photo grid — 4 columns × 2 rows = 8 photos, fades when category changes */}
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={category}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.2 }}
+                className="grid grid-cols-4 gap-3"
+              >
+                {activePhotos.map((avatarUrl, index) => (
+                  <motion.div
+                    key={avatarUrl}
+                    initial={{ opacity: 0, scale: 0.92 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: index * 0.03 }}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.97 }}
+                    onClick={() => setSelectedAvatar(avatarUrl)}
+                    className={`relative aspect-square cursor-pointer rounded-xl overflow-hidden border-2 transition-all duration-200 ${
+                      selectedAvatar === avatarUrl
+                        ? 'border-green-500 ring-2 ring-green-500/30 shadow-md shadow-green-500/20'
+                        : 'border-gray-200 dark:border-gray-700 hover:border-green-300 dark:hover:border-green-600'
+                    }`}
+                  >
+                    <img
+                      src={avatarUrl}
+                      alt={`Stall photo ${index + 1}`}
+                      className="w-full h-full object-cover"
+                    />
+                    {selectedAvatar === avatarUrl && (
+                      <div className="absolute inset-0 bg-green-500/20 flex items-center justify-center">
+                        <div className="w-7 h-7 rounded-full bg-green-500 flex items-center justify-center shadow-lg">
+                          <CheckCircle2 className="w-4 h-4 text-white" />
+                        </div>
                       </div>
-                    </div>
-                  )}
-                </motion.div>
-              ))}
-            </div>
+                    )}
+                  </motion.div>
+                ))}
+              </motion.div>
+            </AnimatePresence>
           </motion.div>
 
           {/* Stall Name */}
@@ -285,7 +350,7 @@ export const CreateStall: React.FC = () => {
             />
           </motion.div>
 
-          {/* ✅ NEW: Category Picker */}
+          {/* Category Picker */}
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
@@ -300,7 +365,6 @@ export const CreateStall: React.FC = () => {
               Shown on your stall card so customers can find you easily
             </p>
 
-            {/* Card-style picker — easier to tap on mobile than a plain <select> */}
             <div className="grid grid-cols-2 gap-3">
               {CATEGORIES.map((cat) => (
                 <motion.button
