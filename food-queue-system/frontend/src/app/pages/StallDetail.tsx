@@ -1,7 +1,7 @@
 import React from 'react';
 import { useParams, useNavigate } from 'react-router';
 import { motion } from 'motion/react';
-import { ArrowLeft, Plus, Store } from 'lucide-react';
+import { ArrowLeft, Plus, Minus, Store } from 'lucide-react';
 import { QueueMeter } from '../components/QueueMeter';
 import { useApp } from '../context/AppContext';
 import { useQueueStream } from '../../hooks/useQueueStream';
@@ -10,14 +10,17 @@ import { toast } from 'sonner';
 export const StallDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { addToCart, stalls } = useApp();
+  const { addToCart, removeFromCart, cart, stalls } = useApp();
 
   const stall = stalls.find((s) => String(s.id) === String(id));
 
-  // ✅ SSE: Live queue data for this stall.
-  // Passed straight to QueueMeter — replaces the old hardcoded queueLength={0}.
-  // useQueueStream returns null data while connecting, so we default to 0.
   const { data: queueData, connectionMode, loading: queueLoading } = useQueueStream(id);
+
+  // Helper: get quantity of a given item in cart
+  const getCartQuantity = (itemId: string): number => {
+    const found = cart.find((i) => i.id === String(itemId) && i.stallId === String(id));
+    return found?.quantity ?? 0;
+  };
 
   if (!stall) {
     return (
@@ -45,6 +48,24 @@ export const StallDetail: React.FC = () => {
       quantity: 1,
     });
     toast.success(`${item.name} added to cart!`);
+  };
+
+  const handleDecrement = (item: any) => {
+    const qty = getCartQuantity(String(item.id));
+    if (qty <= 1) {
+      removeFromCart(String(item.id));
+    } else {
+      // addToCart with quantity -1 will subtract via the context logic;
+      // since AppContext adds quantity, we use a direct removeFromCart + re-add trick:
+      removeFromCart(String(item.id));
+      addToCart({
+        id: String(item.id),
+        stallId: String(stall.id),
+        name: item.name,
+        price: item.price,
+        quantity: qty - 1,
+      });
+    }
   };
 
   return (
@@ -109,50 +130,86 @@ export const StallDetail: React.FC = () => {
                 <p className="text-gray-500 dark:text-gray-400">No items listed yet.</p>
               </div>
             ) : (
-              stall.items.map((item, index) => (
-                <motion.div
-                  key={item.id}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: index * 0.07 }}
-                  className="bg-gray-50 dark:bg-gray-800/50 rounded-xl overflow-hidden border border-gray-200 dark:border-purple-500/20 hover:border-blue-300 dark:hover:border-cyan-500/50 transition-all"
-                >
-                  <div className="p-4">
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="flex-1 min-w-0">
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">{item.name}</h3>
-                        {item.description && (
-                          <p className="text-gray-600 dark:text-gray-400 text-sm mb-2 truncate">{item.description}</p>
+              stall.items.map((item, index) => {
+                const qty = getCartQuantity(String(item.id));
+                return (
+                  <motion.div
+                    key={item.id}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.07 }}
+                    className="bg-gray-50 dark:bg-gray-800/50 rounded-xl overflow-hidden border border-gray-200 dark:border-purple-500/20 hover:border-blue-300 dark:hover:border-cyan-500/50 transition-all"
+                  >
+                    <div className="p-4">
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">{item.name}</h3>
+                          {item.description && (
+                            <p className="text-gray-600 dark:text-gray-400 text-sm mb-2 truncate">{item.description}</p>
+                          )}
+                          <span className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
+                            ₹{Number(item.price).toFixed(2)}
+                          </span>
+                        </div>
+
+                        {/* Add button or quantity stepper */}
+                        {qty === 0 ? (
+                          <motion.button
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => handleAddToCart(item)}
+                            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-semibold rounded-lg shadow-md hover:shadow-blue-500/40 transition-all flex-shrink-0"
+                          >
+                            <Plus className="w-4 h-4" />
+                            Add
+                          </motion.button>
+                        ) : (
+                          <motion.div
+                            initial={{ scale: 0.8, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            className="flex items-center gap-2 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-lg shadow-md flex-shrink-0 overflow-hidden"
+                          >
+                            <motion.button
+                              whileTap={{ scale: 0.85 }}
+                              onClick={() => handleDecrement(item)}
+                              className="px-3 py-2 text-white hover:bg-white/20 transition-colors"
+                            >
+                              <Minus className="w-4 h-4" />
+                            </motion.button>
+
+                            <motion.span
+                              key={qty}
+                              initial={{ scale: 1.4, opacity: 0 }}
+                              animate={{ scale: 1, opacity: 1 }}
+                              className="min-w-[1.5rem] text-center text-white font-bold text-sm"
+                            >
+                              {qty}
+                            </motion.span>
+
+                            <motion.button
+                              whileTap={{ scale: 0.85 }}
+                              onClick={() => handleAddToCart(item)}
+                              className="px-3 py-2 text-white hover:bg-white/20 transition-colors"
+                            >
+                              <Plus className="w-4 h-4" />
+                            </motion.button>
+                          </motion.div>
                         )}
-                        <span className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
-                          ₹{Number(item.price).toFixed(2)}
-                        </span>
                       </div>
-                      <motion.button
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => handleAddToCart(item)}
-                        className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-semibold rounded-lg shadow-md hover:shadow-blue-500/40 transition-all flex-shrink-0"
-                      >
-                        <Plus className="w-4 h-4" />
-                        Add
-                      </motion.button>
                     </div>
-                  </div>
-                </motion.div>
-              ))
+                  </motion.div>
+                );
+              })
             )}
           </div>
 
-          {/* Queue Meter Sidebar — now wired to live SSE data */}
+          {/* Queue Meter Sidebar */}
           <motion.div
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.3 }}
             className="lg:sticky lg:top-24 h-fit"
           >
-            {/* ✅ FIXED: was queueLength={0} estimatedWait="~15" (hardcoded + wrong type).
-                Now receives live data from SSE stream via useQueueStream. */}
             <QueueMeter
               queueLength={queueData?.queue_length ?? 0}
               estimatedWait={queueData?.estimated_wait_minutes ?? 0}

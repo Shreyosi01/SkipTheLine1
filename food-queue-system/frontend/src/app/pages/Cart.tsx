@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ShoppingCart, Trash2, Plus, Minus, ArrowRight } from 'lucide-react';
+import { ShoppingCart, Trash2, Plus, Minus, ArrowRight, ArrowLeft } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
@@ -12,6 +12,9 @@ export const Cart: React.FC = () => {
 
   const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const estimatedTime = 15;
+
+  // Derive stall ID from first cart item for the back button
+  const stallId = cart[0]?.stallId;
 
   const handleCheckout = async () => {
     if (cart.length === 0) {
@@ -51,7 +54,6 @@ export const Cart: React.FC = () => {
 
       addOrder(order);
       clearCart();
-      // ✅ Navigate to dedicated confirmation route, not order/:id
       navigate('/order/confirmation', { state: { order } });
     } catch (err: any) {
       toast.error(err.message || 'Failed to place order');
@@ -65,11 +67,8 @@ export const Cart: React.FC = () => {
     const newQty = item.quantity + change;
 
     if (newQty <= 0) {
-      // Remove item entirely when quantity hits 0
       removeFromCart(itemId);
     } else {
-      // Remove and re-add with the exact new quantity
-      // This avoids the addToCart accumulation logic entirely
       removeFromCart(itemId);
       addToCart({ ...item, quantity: newQty });
     }
@@ -78,6 +77,21 @@ export const Cart: React.FC = () => {
   return (
     <div className="min-h-screen bg-white dark:bg-gray-900 pt-20 pb-12 transition-colors duration-200">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+
+        {/* Back to Stall button */}
+        {stallId && (
+          <motion.button
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            whileHover={{ x: -5 }}
+            onClick={() => navigate(`/stall/${stallId}`)}
+            className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white mb-6 transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            <span>Back to Stall</span>
+          </motion.button>
+        )}
+
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -138,9 +152,14 @@ export const Cart: React.FC = () => {
                         >
                           <Minus className="w-4 h-4" />
                         </motion.button>
-                        <span className="text-gray-900 dark:text-white font-semibold w-8 text-center">
+                        <motion.span
+                          key={item.quantity}
+                          initial={{ scale: 1.4, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          className="text-gray-900 dark:text-white font-semibold w-8 text-center"
+                        >
                           {item.quantity}
-                        </span>
+                        </motion.span>
                         <motion.button
                           whileHover={{ scale: 1.1 }}
                           whileTap={{ scale: 0.9 }}
