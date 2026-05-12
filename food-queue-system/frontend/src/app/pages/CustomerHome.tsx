@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Search, Store, Clock, Package, ChevronRight, BadgeCheck,
-  Sparkles, RefreshCw, IndianRupee, ArrowLeft,
+  Sparkles, RefreshCw, IndianRupee, ArrowLeft, X,
 } from 'lucide-react';
 import { useApp, Stall, StallItem } from '../context/AppContext';
 import { Link, useParams, useNavigate } from 'react-router';
@@ -41,13 +41,14 @@ const StallCard: React.FC<{ stall: Stall; index: number }> = ({ stall, index }) 
           <img
             src={stall.image}
             alt={stall.stallName}
-            className="absolute inset-0 w-full h-full object-cover opacity-60"
+            loading="lazy"
+            className="absolute inset-0 w-full h-full object-cover opacity-100"
             onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
           />
         )}
 
-        {/* Subtle highlight — sits on top of image */}
-        <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_70%_30%,white,transparent)]" />
+        {/* Subtle overlay for readability without hiding the image */}
+        <div className="absolute inset-0 bg-black/10" />
 
         {/* ✅ FIXED: avatar icon removed — it was duplicating the image and
             covering it. Show initial letter only when there's no image. */}
@@ -161,11 +162,12 @@ export const StallDetail: React.FC = () => {
             <img
               src={stall.image}
               alt={stall.stallName}
-              className="absolute inset-0 w-full h-full object-cover opacity-60"
+              loading="lazy"
+              className="absolute inset-0 w-full h-full object-cover opacity-100"
               onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
             />
           )}
-          <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_70%_30%,white,transparent)]" />
+          <div className="absolute inset-0 bg-black/10" />
 
           <div className="text-center text-white relative z-10">
             {/* Only show letter avatar if there's no image */}
@@ -238,12 +240,12 @@ export const CustomerHome: React.FC = () => {
   const recentOrders = orders.slice(-3).reverse();
 
   const filteredStalls = useMemo(() => {
-    const q = searchTerm.trim().toLowerCase();
-    if (!q) return stalls;
+    const s = searchTerm.trim().toLowerCase();
+    if (!s) return stalls;
     return stalls.filter(
-      (s) =>
-        s.stallName.toLowerCase().includes(q) ||
-        s.items.some((it) => it.name.toLowerCase().includes(q))
+      (stall) =>
+        stall.stallName.toLowerCase().includes(s) ||
+        stall.items.some((it) => it.name.toLowerCase().includes(s))
     );
   }, [stalls, searchTerm]);
 
@@ -290,8 +292,22 @@ export const CustomerHome: React.FC = () => {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search stalls or food items…"
-              className="w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-gray-800/50 backdrop-blur-sm border border-gray-200 dark:border-purple-500/30 rounded-xl text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 dark:focus:border-cyan-500 focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-cyan-500/20 transition-all"
+              className="w-full pl-12 pr-12 py-4 bg-gray-50 dark:bg-gray-800/50 backdrop-blur-sm border border-gray-200 dark:border-purple-500/30 rounded-xl text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 dark:focus:border-cyan-500 focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-cyan-500/20 transition-all"
             />
+            <AnimatePresence>
+              {searchTerm && (
+                <motion.button
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.8 }}
+                  type="button"
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 w-6 h-6 rounded-md flex items-center justify-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </motion.button>
+              )}
+            </AnimatePresence>
           </div>
         </motion.div>
 

@@ -23,44 +23,44 @@ import { toast } from 'sonner';
 // 8 unique photos per category, all verified food/drink shots.
 const CATEGORY_AVATARS: Record<string, string[]> = {
   snacks: [
-    "https://images.unsplash.com/photo-1601050690597-df0568f70950?w=150&h=150&fit=crop", // samosa
-    "https://images.unsplash.com/photo-1599490659213-e2b9527bd087?w=150&h=150&fit=crop", // chips bowl
-    "https://images.unsplash.com/photo-1574484284002-952d92456975?w=150&h=150&fit=crop", // nachos
-    "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=150&h=150&fit=crop", // burger
-    "https://images.unsplash.com/photo-1606728035253-49e8a23146de?w=150&h=150&fit=crop", // nuggets
-    "https://images.unsplash.com/photo-1626645738196-c2a7c87a8f58?w=150&h=150&fit=crop", // fried snacks
-    "https://images.unsplash.com/photo-1562967914-608f82629710?w=150&h=150&fit=crop", // finger food platter
-    "https://images.unsplash.com/photo-1513104890138-7c749659a591?w=150&h=150&fit=crop", // pizza slice
+    "https://images.unsplash.com/photo-1601050690597-df0568f70950?w=800&h=500&fit=crop", // samosa
+    "https://images.unsplash.com/photo-1599490659213-e2b9527bd087?w=800&h=500&fit=crop", // chips bowl
+    "https://images.unsplash.com/photo-1574484284002-952d92456975?w=800&h=500&fit=crop", // nachos
+    "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=800&h=500&fit=crop", // burger
+    "https://images.unsplash.com/photo-1606728035253-49e8a23146de?w=800&h=500&fit=crop", // nuggets
+    "https://images.unsplash.com/photo-1626645738196-c2a7c87a8f58?w=800&h=500&fit=crop", // fried snacks
+    "https://images.unsplash.com/photo-1562967914-608f82629710?w=800&h=500&fit=crop", // finger food platter
+    "https://images.unsplash.com/photo-1513104890138-7c749659a591?w=800&h=500&fit=crop", // pizza slice
   ],
   meals: [
-    "https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=150&h=150&fit=crop", // biryani
-    "https://images.unsplash.com/photo-1546833999-b9f581a1996d?w=150&h=150&fit=crop", // thali bowl
-    "https://images.unsplash.com/photo-1565557623262-b51c2513a641?w=150&h=150&fit=crop", // Indian curry
-    "https://images.unsplash.com/photo-1512058564366-18510be2db19?w=150&h=150&fit=crop", // rice dish
-    "https://images.unsplash.com/photo-1596797038530-2c107229654b?w=150&h=150&fit=crop", // paneer dish
-    "https://images.unsplash.com/photo-1631515243349-e0cb75fb8d3a?w=150&h=150&fit=crop", // roti / bread
-    "https://images.unsplash.com/photo-1455619452474-d2be8b1e70cd?w=150&h=150&fit=crop", // chicken curry
-    "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=150&h=150&fit=crop", // loaded food spread
+    "https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=800&h=500&fit=crop", // biryani
+    "https://images.unsplash.com/photo-1546833999-b9f581a1996d?w=800&h=500&fit=crop", // thali bowl
+    "https://images.unsplash.com/photo-1565557623262-b51c2513a641?w=800&h=500&fit=crop", // Indian curry
+    "https://images.unsplash.com/photo-1512058564366-18510be2db19?w=800&h=500&fit=crop", // rice dish
+    "https://images.unsplash.com/photo-1596797038530-2c107229654b?w=800&h=500&fit=crop", // paneer dish
+    "https://images.unsplash.com/photo-1631515243349-e0cb75fb8d3a?w=800&h=500&fit=crop", // roti / bread
+    "https://images.unsplash.com/photo-1455619452474-d2be8b1e70cd?w=800&h=500&fit=crop", // chicken curry
+    "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=800&h=500&fit=crop", // loaded food spread
   ],
   beverages: [
-    "https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=150&h=150&fit=crop", // coffee cup
-    "https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=150&h=150&fit=crop", // smoothie
-    "https://images.unsplash.com/photo-1499638673689-79a0b5115d87?w=150&h=150&fit=crop", // latte art
-    "https://images.unsplash.com/photo-1571934811356-5cc061b6821f?w=150&h=150&fit=crop", // tea cup
-    "https://images.unsplash.com/photo-1544145945-f90425340c7e?w=150&h=150&fit=crop", // fresh juice
-    "https://images.unsplash.com/photo-1563227812-0ea4c22e6cc8?w=150&h=150&fit=crop", // milkshake
-    "https://images.unsplash.com/photo-1461023058943-07fcbe16d735?w=150&h=150&fit=crop", // iced drinks
-    "https://images.unsplash.com/photo-1600271886742-f049cd451bba?w=150&h=150&fit=crop", // fruit juice stall
+    "https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=800&h=500&fit=crop", // coffee cup
+    "https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=800&h=500&fit=crop", // smoothie
+    "https://images.unsplash.com/photo-1499638673689-79a0b5115d87?w=800&h=500&fit=crop", // latte art
+    "https://images.unsplash.com/photo-1571934811356-5cc061b6821f?w=800&h=500&fit=crop", // tea cup
+    "https://images.unsplash.com/photo-1544145945-f90425340c7e?w=800&h=500&fit=crop", // fresh juice
+    "https://images.unsplash.com/photo-1563227812-0ea4c22e6cc8?w=800&h=500&fit=crop", // milkshake
+    "https://images.unsplash.com/photo-1461023058943-07fcbe16d735?w=800&h=500&fit=crop", // iced drinks
+    "https://images.unsplash.com/photo-1600271886742-f049cd451bba?w=800&h=500&fit=crop", // fruit juice stall
   ],
   desserts: [
-    "https://images.unsplash.com/photo-1551024601-bec78aea704b?w=150&h=150&fit=crop", // dessert platter
-    "https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=150&h=150&fit=crop", // layered cake
-    "https://images.unsplash.com/photo-1551529834-525807d6b4f3?w=150&h=150&fit=crop", // Indian sweets / mithai
-    "https://images.unsplash.com/photo-1488477181946-6428a0291777?w=150&h=150&fit=crop", // pastry
-    "https://images.unsplash.com/photo-1565958011703-44f9829ba187?w=150&h=150&fit=crop", // donuts
-    "https://images.unsplash.com/photo-1576618148400-f54bed99fcfd?w=150&h=150&fit=crop", // macarons
-    "https://images.unsplash.com/photo-1571877227200-a0d98ea607e9?w=150&h=150&fit=crop", // chocolate dessert
-    "https://images.unsplash.com/photo-1563805042-7684c019e1cb?w=150&h=150&fit=crop", // ice cream scoops
+    "https://images.unsplash.com/photo-1551024601-bec78aea704b?w=800&h=500&fit=crop", // dessert platter
+    "https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=800&h=500&fit=crop", // layered cake
+    "https://images.unsplash.com/photo-1551529834-525807d6b4f3?w=800&h=500&fit=crop", // Indian sweets / mithai
+    "https://images.unsplash.com/photo-1488477181946-6428a0291777?w=800&h=500&fit=crop", // pastry
+    "https://images.unsplash.com/photo-1565958011703-44f9829ba187?w=800&h=500&fit=crop", // donuts
+    "https://images.unsplash.com/photo-1576618148400-f54bed99fcfd?w=800&h=500&fit=crop", // macarons
+    "https://images.unsplash.com/photo-1571877227200-a0d98ea607e9?w=800&h=500&fit=crop", // chocolate dessert
+    "https://images.unsplash.com/photo-1563805042-7684c019e1cb?w=800&h=500&fit=crop", // ice cream scoops
   ],
 };
 
