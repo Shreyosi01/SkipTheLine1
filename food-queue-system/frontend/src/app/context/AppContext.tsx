@@ -75,6 +75,7 @@ interface AppContextType {
   setUserMode: (mode: UserMode) => void;
   addToCart: (item: CartItem) => void;
   removeFromCart: (id: string) => void;
+  updateCartItemQuantity: (id: string, quantity: number) => void;
   clearCart: () => void;
   addOrder: (order: Order) => void;
   updateOrderStatus: (id: string, status: OrderStatus) => void;
@@ -401,6 +402,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const removeFromCart = (id: string) => setCart(prev => prev.filter(i => i.id !== id));
+  const updateCartItemQuantity = (id: string, quantity: number) => {
+    setCart(prev => prev.map(i => i.id === id ? { ...i, quantity } : i));
+  };
   const clearCart = () => setCart([]);
 
   // ✅ avatar now comes directly from CreateStall's picker, not from user.avatar
@@ -490,7 +494,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   return (
     <AppContext.Provider value={{
       user, userMode, cart, orders, isLoading, isInitializing, stalls,
-      setUser, setUserMode, addToCart, removeFromCart, clearCart,
+      setUser, setUserMode, addToCart, removeFromCart, updateCartItemQuantity, clearCart,
       addOrder, updateOrderStatus, loginUser, registerUser,
       logoutUser, deleteUser, updateProfile,
       fetchMyOrders, fetchVendorOrders, fetchStalls,

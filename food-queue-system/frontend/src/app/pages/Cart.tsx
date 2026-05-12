@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { api } from '../../api/client';
 
 export const Cart: React.FC = () => {
-  const { cart, removeFromCart, addToCart, clearCart, addOrder, stalls } = useApp();
+  const { cart, removeFromCart, addToCart, updateCartItemQuantity, clearCart, addOrder, stalls } = useApp();
   const navigate = useNavigate();
 
   const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
@@ -69,8 +69,7 @@ export const Cart: React.FC = () => {
     if (newQty <= 0) {
       removeFromCart(itemId);
     } else {
-      removeFromCart(itemId);
-      addToCart({ ...item, quantity: newQty });
+      updateCartItemQuantity(itemId, newQty);
     }
   };
 

@@ -49,8 +49,16 @@ export const VendorDashboard: React.FC = () => {
             <div className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-2xl border border-green-200 dark:border-green-700/40 p-6">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div className="flex items-center gap-4">
-                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center shadow-lg shadow-green-500/25 flex-shrink-0">
-                    <Store className="w-7 h-7 text-white" />
+                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center shadow-lg shadow-green-500/25 flex-shrink-0 overflow-hidden">
+                      {vendorStall.image ? (
+                        <img
+                          src={vendorStall.image}
+                          alt={vendorStall.stallName}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <Store className="w-7 h-7 text-white" />
+                      )}
                   </div>
                   <div>
                     <div className="flex items-center gap-2 mb-0.5">
