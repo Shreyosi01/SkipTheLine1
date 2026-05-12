@@ -461,6 +461,7 @@ export const CreateStall: React.FC = () => {
                             type="number"
                             value={item.price || ''}
                             onChange={(e) => updateItem(item.id, 'price', parseFloat(e.target.value) || 0)}
+                            onWheel={(e) => e.currentTarget.blur()} // Prevent scroll from changing value
                             placeholder="Price"
                             min="0"
                             step="0.5"
