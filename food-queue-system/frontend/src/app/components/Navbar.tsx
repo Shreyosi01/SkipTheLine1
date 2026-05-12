@@ -8,6 +8,9 @@ import { useApp } from '../context/AppContext';
 export const Navbar: React.FC = () => {
   const { user, userMode, cart } = useApp();
 
+  // Sum quantities across all cart items (not just unique item count)
+  const totalCartQuantity = cart.reduce((sum, item) => sum + item.quantity, 0);
+
   return (
     <motion.nav
       initial={{ y: -100 }}
@@ -40,13 +43,14 @@ export const Navbar: React.FC = () => {
                   className="relative p-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors"
                 >
                   <ShoppingCart className="w-6 h-6" />
-                  {cart.length > 0 && (
+                  {totalCartQuantity > 0 && (
                     <motion.span
+                      key={totalCartQuantity}
                       initial={{ scale: 0 }}
                       animate={{ scale: 1 }}
-                      className="absolute -top-1 -right-1 w-5 h-5 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full flex items-center justify-center text-xs text-white"
+                      className="absolute -top-1 -right-1 w-5 h-5 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full flex items-center justify-center text-xs text-white font-bold"
                     >
-                      {cart.length}
+                      {totalCartQuantity > 99 ? '99+' : totalCartQuantity}
                     </motion.span>
                   )}
                 </motion.button>
