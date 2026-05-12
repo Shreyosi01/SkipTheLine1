@@ -229,12 +229,12 @@ export const CustomerStallList: React.FC = () => {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return stalls;
+    const s = search.trim().toLowerCase();
+    if (!s) return stalls;
     return stalls.filter(
-      (s) =>
-        s.stallName.toLowerCase().includes(q) ||
-        s.items.some((it) => it.name.toLowerCase().includes(q))
+      (stall) =>
+        stall.stallName.toLowerCase().includes(s) ||
+        stall.items.some((it) => it.name.toLowerCase().includes(s))
     );
   }, [stalls, search]);
 

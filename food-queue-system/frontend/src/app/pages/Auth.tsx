@@ -147,7 +147,7 @@ export const Auth: React.FC = () => {
               Q
             </div>
             <span className={`text-3xl font-bold bg-gradient-to-r bg-clip-text text-transparent ${selectedMode === 'customer' ? 'from-blue-400 to-cyan-400' : 'from-green-400 to-emerald-400'}`}>
-              QueueSkip
+              SkipTheLine
             </span>
           </div>
 
