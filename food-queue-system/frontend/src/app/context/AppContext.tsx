@@ -34,6 +34,7 @@ export interface StallItem {
   name: string;
   price: number;
   description?: string;
+  isAvailable?: boolean; // ✅ NEW: whether this item is currently in stock
 }
 
 export interface Stall {
@@ -45,6 +46,7 @@ export interface Stall {
   status: 'new' | 'updated';
   image?: string;
   category?: string;
+  isOpen?: boolean; // ✅ NEW: whether the stall is currently accepting orders
 }
 
 export interface Order {
@@ -67,7 +69,6 @@ interface AppContextType {
   isLoading: boolean;
   isInitializing: boolean;
   stalls: Stall[];
-  // ✅ avatar param added so CreateStall can pass it directly
   createStall: (name: string, items: StallItem[], category?: string, avatar?: string) => Promise<void>;
   updateStall: (id: string, name: string, items: StallItem[], category?: string, avatar?: string) => Promise<void>;
   getVendorStall: () => Stall | undefined;
@@ -117,16 +118,20 @@ const persistVendorAvatar = (vendorId: string, avatar: string) => {
 };
 // ───────────────────────────────────────────────────────────────────────────
 
+// ✅ UPDATED: now maps is_open from the API response onto the Stall object,
+// and maps is_available from each menu item onto StallItem.
 const mapStall = (s: any, menuItems?: any[]): Stall => ({
   id: String(s.id),
   vendorId: String(s.owner_id),
   stallName: s.name,
   category: s.category,
+  isOpen: s.is_open ?? true, // ✅ default true so existing stalls appear open
   items: (menuItems || []).map((i: any) => ({
     id: String(i.id),
     name: i.name,
     price: i.price,
     description: i.description,
+    isAvailable: i.is_available ?? true, // ✅ default true for safety
   })),
   updatedAt: s.updated_at || new Date().toISOString(),
   status: 'new' as const,
@@ -158,7 +163,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const restoreSession = async () => {
     const savedToken = localStorage.getItem('token');
-    const savedUser = localStorage.getItem('user');
+    const savedUser  = localStorage.getItem('user');
     if (!savedToken || !savedUser) return;
 
     try {
@@ -211,7 +216,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const stallsWithMenus = await Promise.all(
         res.map(async (s: any) => {
           try {
-            const menu = await api.getMenu(s.id);
+            const menu  = await api.getMenu(s.id);
             const stall = mapStall(s, Array.isArray(menu) ? menu : []);
             const localAvatar = vendorAvatars[String(s.owner_id)];
             return { ...stall, image: stall.image || localAvatar || undefined };
@@ -353,7 +358,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     fetchStalls();
   };
 
-  const logoutUser = () => clearSession();
+  const logoutUser  = () => clearSession();
 
   const deleteUser = async () => {
     try {
@@ -383,7 +388,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const addOrder = (order: Order) => setOrders(prev => [order, ...prev]);
+  const addOrder  = (order: Order) => setOrders(prev => [order, ...prev]);
 
   const updateOrderStatus = (id: string, status: OrderStatus) => {
     setOrders(prev => prev.map(o => o.id === id ? { ...o, status } : o));
@@ -394,43 +399,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const existing = prev.find(i => i.id === item.id);
       if (existing) {
         return prev.map(i =>
-          i.id === item.id ? { ...i, quantity: i.quantity + (item.quantity > 0 ? item.quantity : 1) } : i
+          i.id === item.id
+            ? { ...i, quantity: i.quantity + (item.quantity > 0 ? item.quantity : 1) }
+            : i
         );
       }
       return [...prev, item];
     });
   };
 
-  const removeFromCart = (id: string) => setCart(prev => prev.filter(i => i.id !== id));
-  const updateCartItemQuantity = (id: string, quantity: number) => {
+  const removeFromCart          = (id: string) => setCart(prev => prev.filter(i => i.id !== id));
+  const updateCartItemQuantity  = (id: string, quantity: number) =>
     setCart(prev => prev.map(i => i.id === id ? { ...i, quantity } : i));
-  };
   const clearCart = () => setCart([]);
 
-  // ✅ avatar now comes directly from CreateStall's picker, not from user.avatar
+  // ✅ UPDATED: passes item.isAvailable (defaulting to true) instead of hardcoding true
   const createStall = async (name: string, items: StallItem[], category = 'snacks', avatar?: string) => {
     if (!user) return;
     try {
-      const vendorAvatars = getStoredVendorAvatars();
-      // Priority: picker selection > existing stored avatar > user.avatar
+      const vendorAvatars  = getStoredVendorAvatars();
       const resolvedAvatar = avatar || vendorAvatars[user.id] || user.avatar;
 
-      const res = await api.createStall({ name, category, avatar: resolvedAvatar });
+      const res    = await api.createStall({ name, category, avatar: resolvedAvatar });
       const stallId = res.id;
 
       await Promise.all(
         items.map(item =>
           api.addMenuItem({
-            stall_id: stallId,
-            name: item.name,
-            price: item.price,
-            description: item.description || '',
-            is_available: true,
+            stall_id:     stallId,
+            name:         item.name,
+            price:        item.price,
+            description:  item.description || '',
+            is_available: item.isAvailable ?? true, // ✅ respects item-level toggle
           })
         )
       );
 
-      // ✅ Persist the chosen avatar and update user + stall list in one shot
       const updatedUser = { ...user, stallId: String(stallId), avatar: resolvedAvatar };
       if (resolvedAvatar) persistVendorAvatar(user.id, resolvedAvatar);
       setUser(updatedUser);
@@ -441,47 +445,51 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  // ✅ avatar now comes directly from CreateStall's picker
+  // ✅ UPDATED: passes item.isAvailable (defaulting to true) instead of hardcoding true
   const updateStall = async (id: string, name: string, items: StallItem[], category = 'snacks', avatar?: string) => {
     if (!user) return;
     try {
-      const vendorAvatars = getStoredVendorAvatars();
+      const vendorAvatars  = getStoredVendorAvatars();
       const resolvedAvatar = avatar || vendorAvatars[user.id] || user.avatar;
 
       await api.updateStall(parseInt(id), { name, category, avatar: resolvedAvatar });
 
-      // ✅ Persist updated avatar choice immediately
       if (resolvedAvatar) persistVendorAvatar(user.id, resolvedAvatar);
 
       const currentMenu: any[] = await api.getMenu(parseInt(id)).catch(() => []);
-      const currentIds = new Set(currentMenu.map((i: any) => String(i.id)));
+      const currentIds         = new Set(currentMenu.map((i: any) => String(i.id)));
       const incomingExistingIds = new Set(
         items.filter(i => i.id && currentIds.has(i.id)).map(i => i.id)
       );
+
+      // Delete menu items that were removed
       await Promise.all(
         currentMenu
           .filter((i: any) => !incomingExistingIds.has(String(i.id)))
           .map((i: any) => api.deleteMenuItem(i.id))
       );
+
+      // Update existing items / add new ones — ✅ respects item-level availability toggle
       await Promise.all(
         items.map(item => {
           if (item.id && currentIds.has(item.id)) {
             return api.updateMenuItem(parseInt(item.id), {
-              name: item.name,
-              price: item.price,
-              description: item.description || '',
-              is_available: true,
+              name:         item.name,
+              price:        item.price,
+              description:  item.description || '',
+              is_available: item.isAvailable ?? true, // ✅ respects item-level toggle
             });
           }
           return api.addMenuItem({
-            stall_id: parseInt(id),
-            name: item.name,
-            price: item.price,
-            description: item.description || '',
-            is_available: true,
+            stall_id:     parseInt(id),
+            name:         item.name,
+            price:        item.price,
+            description:  item.description || '',
+            is_available: item.isAvailable ?? true, // ✅ respects item-level toggle
           });
         })
       );
+
       await fetchStalls();
     } catch (e: any) {
       console.error('Failed to update stall', e);

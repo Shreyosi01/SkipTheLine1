@@ -14,57 +14,57 @@ import {
   Edit3,
   Image,
   UtensilsCrossed,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { useApp, StallItem } from '../context/AppContext';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
 
 // ── Category-specific photo sets ─────────────────────────────────────────────
-// 8 unique photos per category, all verified food/drink shots.
 const CATEGORY_AVATARS: Record<string, string[]> = {
   snacks: [
-    "https://images.unsplash.com/photo-1601050690597-df0568f70950?w=800&h=500&fit=crop", // samosa
-    "https://images.unsplash.com/photo-1599490659213-e2b9527bd087?w=800&h=500&fit=crop", // chips bowl
-    "https://images.unsplash.com/photo-1574484284002-952d92456975?w=800&h=500&fit=crop", // nachos
-    "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=800&h=500&fit=crop", // burger
-    "https://images.unsplash.com/photo-1606728035253-49e8a23146de?w=800&h=500&fit=crop", // nuggets
-    "https://images.unsplash.com/photo-1626645738196-c2a7c87a8f58?w=800&h=500&fit=crop", // fried snacks
-    "https://images.unsplash.com/photo-1562967914-608f82629710?w=800&h=500&fit=crop", // finger food platter
-    "https://images.unsplash.com/photo-1513104890138-7c749659a591?w=800&h=500&fit=crop", // pizza slice
+    "https://images.unsplash.com/photo-1601050690597-df0568f70950?w=800&h=500&fit=crop",
+    "https://images.unsplash.com/photo-1599490659213-e2b9527bd087?w=800&h=500&fit=crop",
+    "https://images.unsplash.com/photo-1574484284002-952d92456975?w=800&h=500&fit=crop",
+    "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=800&h=500&fit=crop",
+    "https://images.unsplash.com/photo-1606728035253-49e8a23146de?w=800&h=500&fit=crop",
+    "https://images.unsplash.com/photo-1626645738196-c2a7c87a8f58?w=800&h=500&fit=crop",
+    "https://images.unsplash.com/photo-1562967914-608f82629710?w=800&h=500&fit=crop",
+    "https://images.unsplash.com/photo-1513104890138-7c749659a591?w=800&h=500&fit=crop",
   ],
   meals: [
-    "https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=800&h=500&fit=crop", // biryani
-    "https://images.unsplash.com/photo-1546833999-b9f581a1996d?w=800&h=500&fit=crop", // thali bowl
-    "https://images.unsplash.com/photo-1565557623262-b51c2513a641?w=800&h=500&fit=crop", // Indian curry
-    "https://images.unsplash.com/photo-1512058564366-18510be2db19?w=800&h=500&fit=crop", // rice dish
-    "https://images.unsplash.com/photo-1596797038530-2c107229654b?w=800&h=500&fit=crop", // paneer dish
-    "https://images.unsplash.com/photo-1631515243349-e0cb75fb8d3a?w=800&h=500&fit=crop", // roti / bread
-    "https://images.unsplash.com/photo-1455619452474-d2be8b1e70cd?w=800&h=500&fit=crop", // chicken curry
-    "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=800&h=500&fit=crop", // loaded food spread
+    "https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=800&h=500&fit=crop",
+    "https://images.unsplash.com/photo-1546833999-b9f581a1996d?w=800&h=500&fit=crop",
+    "https://images.unsplash.com/photo-1565557623262-b51c2513a641?w=800&h=500&fit=crop",
+    "https://images.unsplash.com/photo-1512058564366-18510be2db19?w=800&h=500&fit=crop",
+    "https://images.unsplash.com/photo-1596797038530-2c107229654b?w=800&h=500&fit=crop",
+    "https://images.unsplash.com/photo-1631515243349-e0cb75fb8d3a?w=800&h=500&fit=crop",
+    "https://images.unsplash.com/photo-1455619452474-d2be8b1e70cd?w=800&h=500&fit=crop",
+    "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=800&h=500&fit=crop",
   ],
   beverages: [
-    "https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=800&h=500&fit=crop", // coffee cup
-    "https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=800&h=500&fit=crop", // smoothie
-    "https://images.unsplash.com/photo-1499638673689-79a0b5115d87?w=800&h=500&fit=crop", // latte art
-    "https://images.unsplash.com/photo-1571934811356-5cc061b6821f?w=800&h=500&fit=crop", // tea cup
-    "https://images.unsplash.com/photo-1544145945-f90425340c7e?w=800&h=500&fit=crop", // fresh juice
-    "https://images.unsplash.com/photo-1563227812-0ea4c22e6cc8?w=800&h=500&fit=crop", // milkshake
-    "https://images.unsplash.com/photo-1461023058943-07fcbe16d735?w=800&h=500&fit=crop", // iced drinks
-    "https://images.unsplash.com/photo-1600271886742-f049cd451bba?w=800&h=500&fit=crop", // fruit juice stall
+    "https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=800&h=500&fit=crop",
+    "https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=800&h=500&fit=crop",
+    "https://images.unsplash.com/photo-1499638673689-79a0b5115d87?w=800&h=500&fit=crop",
+    "https://images.unsplash.com/photo-1571934811356-5cc061b6821f?w=800&h=500&fit=crop",
+    "https://images.unsplash.com/photo-1544145945-f90425340c7e?w=800&h=500&fit=crop",
+    "https://images.unsplash.com/photo-1563227812-0ea4c22e6cc8?w=800&h=500&fit=crop",
+    "https://images.unsplash.com/photo-1461023058943-07fcbe16d735?w=800&h=500&fit=crop",
+    "https://images.unsplash.com/photo-1600271886742-f049cd451bba?w=800&h=500&fit=crop",
   ],
   desserts: [
-    "https://images.unsplash.com/photo-1551024601-bec78aea704b?w=800&h=500&fit=crop", // dessert platter
-    "https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=800&h=500&fit=crop", // layered cake
-    "https://images.unsplash.com/photo-1551529834-525807d6b4f3?w=800&h=500&fit=crop", // Indian sweets / mithai
-    "https://images.unsplash.com/photo-1488477181946-6428a0291777?w=800&h=500&fit=crop", // pastry
-    "https://images.unsplash.com/photo-1565958011703-44f9829ba187?w=800&h=500&fit=crop", // donuts
-    "https://images.unsplash.com/photo-1576618148400-f54bed99fcfd?w=800&h=500&fit=crop", // macarons
-    "https://images.unsplash.com/photo-1571877227200-a0d98ea607e9?w=800&h=500&fit=crop", // chocolate dessert
-    "https://images.unsplash.com/photo-1563805042-7684c019e1cb?w=800&h=500&fit=crop", // ice cream scoops
+    "https://images.unsplash.com/photo-1551024601-bec78aea704b?w=800&h=500&fit=crop",
+    "https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=800&h=500&fit=crop",
+    "https://images.unsplash.com/photo-1551529834-525807d6b4f3?w=800&h=500&fit=crop",
+    "https://images.unsplash.com/photo-1488477181946-6428a0291777?w=800&h=500&fit=crop",
+    "https://images.unsplash.com/photo-1565958011703-44f9829ba187?w=800&h=500&fit=crop",
+    "https://images.unsplash.com/photo-1576618148400-f54bed99fcfd?w=800&h=500&fit=crop",
+    "https://images.unsplash.com/photo-1571877227200-a0d98ea607e9?w=800&h=500&fit=crop",
+    "https://images.unsplash.com/photo-1563805042-7684c019e1cb?w=800&h=500&fit=crop",
   ],
 };
 
-// ── Category options ──────────────────────────────────────────────────────────
 const CATEGORIES = [
   { value: 'snacks',    label: '🍿 Snacks',    desc: 'Chips, puffs, chaat, finger foods' },
   { value: 'meals',     label: '🍱 Meals',     desc: 'Rice, roti, full meals, tiffin' },
@@ -74,11 +74,13 @@ const CATEGORIES = [
 
 const generateId = () => `item_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 
+// ✅ isAvailable defaults to true for all new items
 const emptyItem = (): StallItem => ({
   id: generateId(),
   name: '',
   price: 0,
   description: '',
+  isAvailable: true,
 });
 
 export const CreateStall: React.FC = () => {
@@ -88,18 +90,18 @@ export const CreateStall: React.FC = () => {
   const existingStall = getVendorStall();
   const isEditing = !!existingStall;
 
-  const [stallName, setStallName] = useState(existingStall?.stallName ?? '');
-  const [items, setItems] = useState<StallItem[]>(
+  const [stallName, setStallName]           = useState(existingStall?.stallName ?? '');
+  const [items, setItems]                   = useState<StallItem[]>(
     existingStall?.items.length ? existingStall.items : [emptyItem()]
   );
   const [selectedAvatar, setSelectedAvatar] = useState<string>(
     existingStall?.image || user?.avatar || ''
   );
-  const [category, setCategory] = useState<string>(
+  const [category, setCategory]             = useState<string>(
     existingStall?.category || 'snacks'
   );
-  const [submitted, setSubmitted] = useState(false);
-  const [focusedItem, setFocusedItem] = useState<string | null>(null);
+  const [submitted, setSubmitted]           = useState(false);
+  const [focusedItem, setFocusedItem]       = useState<string | null>(null);
 
   useEffect(() => {
     if (existingStall) {
@@ -132,8 +134,17 @@ export const CreateStall: React.FC = () => {
     setItems((prev) => prev.filter((i) => i.id !== id));
   };
 
-  const updateItem = (id: string, field: keyof StallItem, value: string | number) => {
+  const updateItem = (id: string, field: keyof StallItem, value: string | number | boolean) => {
     setItems((prev) => prev.map((i) => (i.id === id ? { ...i, [field]: value } : i)));
+  };
+
+  // ✅ Toggle a single item's availability directly in local state
+  const toggleItemAvailability = (id: string) => {
+    setItems((prev) =>
+      prev.map((i) =>
+        i.id === id ? { ...i, isAvailable: !(i.isAvailable ?? true) } : i
+      )
+    );
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -275,7 +286,9 @@ export const CreateStall: React.FC = () => {
                 />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-green-700 dark:text-green-400">Photo selected</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 truncate">This will appear as your stall banner on the home page</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                    This will appear as your stall banner on the home page
+                  </p>
                 </div>
                 <button
                   type="button"
@@ -287,7 +300,6 @@ export const CreateStall: React.FC = () => {
               </div>
             )}
 
-            {/* Photo grid — 4 columns × 2 rows = 8 photos, fades when category changes */}
             <AnimatePresence mode="wait">
               <motion.div
                 key={category}
@@ -312,11 +324,7 @@ export const CreateStall: React.FC = () => {
                         : 'border-gray-200 dark:border-gray-700 hover:border-green-300 dark:hover:border-green-600'
                     }`}
                   >
-                    <img
-                      src={avatarUrl}
-                      alt={`Stall photo ${index + 1}`}
-                      className="w-full h-full object-cover"
-                    />
+                    <img src={avatarUrl} alt={`Stall photo ${index + 1}`} className="w-full h-full object-cover" />
                     {selectedAvatar === avatarUrl && (
                       <div className="absolute inset-0 bg-green-500/20 flex items-center justify-center">
                         <div className="w-7 h-7 rounded-full bg-green-500 flex items-center justify-center shadow-lg">
@@ -364,7 +372,6 @@ export const CreateStall: React.FC = () => {
             <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
               Shown on your stall card so customers can find you easily
             </p>
-
             <div className="grid grid-cols-2 gap-3">
               {CATEGORIES.map((cat) => (
                 <motion.button
@@ -411,78 +418,130 @@ export const CreateStall: React.FC = () => {
               </span>
             </div>
 
+            {/* ✅ Availability hint — only shown in edit mode */}
+            {isEditing && (
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="text-xs text-gray-500 dark:text-gray-400 mb-4 flex items-center gap-1.5"
+              >
+                <Eye className="w-3.5 h-3.5 text-green-500" />
+                Use the <span className="font-semibold text-gray-700 dark:text-gray-300">In Stock / Out of Stock</span> toggle on each item to control what customers can order.
+              </motion.p>
+            )}
+
             <div className="space-y-4">
               <AnimatePresence mode="popLayout">
-                {items.map((item, index) => (
-                  <motion.div
-                    key={item.id}
-                    layout
-                    initial={{ opacity: 0, scale: 0.96, y: 10 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.94, y: -10 }}
-                    transition={{ duration: 0.2 }}
-                    className={`bg-white dark:bg-gray-800/60 rounded-2xl border transition-all shadow-sm ${
-                      focusedItem === item.id
-                        ? 'border-green-400 dark:border-green-500/60 ring-2 ring-green-500/15'
-                        : 'border-gray-200 dark:border-gray-700/50'
-                    }`}
-                    onFocus={() => setFocusedItem(item.id)}
-                    onBlur={() => setFocusedItem(null)}
-                  >
-                    <div className="flex items-center justify-between px-5 pt-4 pb-2">
-                      <span className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">
-                        Item {index + 1}
-                      </span>
-                      <motion.button
-                        type="button"
-                        whileHover={{ scale: 1.1 }}
-                        whileTap={{ scale: 0.9 }}
-                        onClick={() => removeItem(item.id)}
-                        className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </motion.button>
-                    </div>
+                {items.map((item, index) => {
+                  const available = item.isAvailable ?? true;
+                  return (
+                    <motion.div
+                      key={item.id}
+                      layout
+                      initial={{ opacity: 0, scale: 0.96, y: 10 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.94, y: -10 }}
+                      transition={{ duration: 0.2 }}
+                      className={`bg-white dark:bg-gray-800/60 rounded-2xl border transition-all shadow-sm ${
+                        !available
+                          ? 'border-red-200 dark:border-red-700/40 opacity-75'
+                          : focusedItem === item.id
+                          ? 'border-green-400 dark:border-green-500/60 ring-2 ring-green-500/15'
+                          : 'border-gray-200 dark:border-gray-700/50'
+                      }`}
+                      onFocus={() => setFocusedItem(item.id)}
+                      onBlur={() => setFocusedItem(null)}
+                    >
+                      {/* Card header: Item N + availability toggle + delete */}
+                      <div className="flex items-center justify-between px-5 pt-4 pb-2">
+                        <span className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">
+                          Item {index + 1}
+                        </span>
 
-                    <div className="px-5 pb-5 space-y-3">
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        <div className="sm:col-span-2">
+                        <div className="flex items-center gap-2">
+                          {/* ✅ Availability toggle */}
+                          <button
+                            type="button"
+                            onClick={() => toggleItemAvailability(item.id)}
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border transition-colors ${
+                              available
+                                ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700/40 text-green-700 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/40'
+                                : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700/40 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40'
+                            }`}
+                            title={available ? 'Mark as out of stock' : 'Mark as in stock'}
+                          >
+                            {available
+                              ? <><Eye className="w-3 h-3" /> In Stock</>
+                              : <><EyeOff className="w-3 h-3" /> Out of Stock</>
+                            }
+                          </button>
+
+                          <motion.button
+                            type="button"
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.9 }}
+                            onClick={() => removeItem(item.id)}
+                            className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </motion.button>
+                        </div>
+                      </div>
+
+                      {/* Out of stock banner */}
+                      {!available && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="mx-5 mb-2 px-3 py-2 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700/30"
+                        >
+                          <p className="text-xs text-red-600 dark:text-red-400 font-medium">
+                            ⛔ Customers cannot order this item until you mark it as In Stock again.
+                          </p>
+                        </motion.div>
+                      )}
+
+                      <div className="px-5 pb-5 space-y-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          <div className="sm:col-span-2">
+                            <input
+                              type="text"
+                              value={item.name}
+                              onChange={(e) => updateItem(item.id, 'name', e.target.value)}
+                              placeholder="Item name (e.g. Pani Puri)"
+                              className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20 transition-all"
+                            />
+                          </div>
+                          <div className="relative">
+                            <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                            <input
+                              type="number"
+                              value={item.price || ''}
+                              onChange={(e) => updateItem(item.id, 'price', parseFloat(e.target.value) || 0)}
+                              onWheel={(e) => e.currentTarget.blur()}
+                              placeholder="Price"
+                              min="0"
+                              step="0.5"
+                              className="w-full pl-9 pr-4 py-3 bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20 transition-all"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="relative">
+                          <FileText className="absolute left-3 top-3.5 w-4 h-4 text-gray-400" />
                           <input
                             type="text"
-                            value={item.name}
-                            onChange={(e) => updateItem(item.id, 'name', e.target.value)}
-                            placeholder="Item name (e.g. Pani Puri)"
-                            className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20 transition-all"
-                          />
-                        </div>
-                        <div className="relative">
-                          <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                          <input
-                            type="number"
-                            value={item.price || ''}
-                            onChange={(e) => updateItem(item.id, 'price', parseFloat(e.target.value) || 0)}
-                            onWheel={(e) => e.currentTarget.blur()} // Prevent scroll from changing value
-                            placeholder="Price"
-                            min="0"
-                            step="0.5"
-                            className="w-full pl-9 pr-4 py-3 bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20 transition-all"
+                            value={item.description ?? ''}
+                            onChange={(e) => updateItem(item.id, 'description', e.target.value)}
+                            placeholder="Short description (optional)"
+                            className="w-full pl-9 pr-4 py-3 bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20 transition-all text-sm"
                           />
                         </div>
                       </div>
-
-                      <div className="relative">
-                        <FileText className="absolute left-3 top-3.5 w-4 h-4 text-gray-400" />
-                        <input
-                          type="text"
-                          value={item.description ?? ''}
-                          onChange={(e) => updateItem(item.id, 'description', e.target.value)}
-                          placeholder="Short description (optional)"
-                          className="w-full pl-9 pr-4 py-3 bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20 transition-all text-sm"
-                        />
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
+                    </motion.div>
+                  );
+                })}
               </AnimatePresence>
 
               <motion.button

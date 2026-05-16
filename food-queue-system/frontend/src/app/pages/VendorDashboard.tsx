@@ -1,12 +1,21 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
-import { Users, Clock, Package, DollarSign, Store, Plus, Edit3, Sparkles } from 'lucide-react';
+import {
+  Users, Clock, Package, DollarSign, Store,
+  Plus, Edit3, Sparkles, ToggleLeft, ToggleRight, Loader2,
+} from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Link, useNavigate } from 'react-router';
+import { api } from '../../api/client';
+import { toast } from 'sonner';
 
 export const VendorDashboard: React.FC = () => {
   const { orders, user, getVendorStall, fetchVendorOrders } = useApp();
   const navigate = useNavigate();
+
+  // ✅ Local state for open/closed — initialised from stall data once loaded
+  const [isOpen, setIsOpen] = useState<boolean>(true);
+  const [togglingOpen, setTogglingOpen] = useState(false);
 
   // Refresh vendor orders every time the dashboard is visited
   useEffect(() => {
@@ -17,21 +26,45 @@ export const VendorDashboard: React.FC = () => {
   const stallId = vendorStall?.id ?? user?.stallId;
   const vendorOrders = orders.filter((o) => o.stallId === stallId);
 
+  // ✅ Sync isOpen from stall data whenever it loads/changes
+  useEffect(() => {
+    if (vendorStall) {
+      setIsOpen((vendorStall as any).isOpen ?? true);
+    }
+  }, [vendorStall?.id]);
+
   const totalOrders = vendorOrders.length;
   const activeQueue = vendorOrders.filter((o) => o.status !== 'completed').length;
   const totalRevenue = vendorOrders.reduce((sum, o) => sum + o.total, 0);
   const avgWaitTime = 12;
 
   const stats = [
-    { icon: Package, label: 'Total Orders', value: totalOrders, color: 'from-blue-500 to-cyan-500' },
-    { icon: Users, label: 'Active Queue', value: activeQueue, color: 'from-purple-500 to-pink-500' },
-    { icon: DollarSign, label: 'Total Revenue', value: `₹${totalRevenue.toFixed(2)}`, color: 'from-green-500 to-emerald-500' },
-    { icon: Clock, label: 'Avg Wait Time', value: `${avgWaitTime} min`, color: 'from-green-500 to-emerald-500' },
+    { icon: Package,   label: 'Total Orders',  value: totalOrders,              color: 'from-blue-500 to-cyan-500' },
+    { icon: Users,     label: 'Active Queue',   value: activeQueue,              color: 'from-purple-500 to-pink-500' },
+    { icon: DollarSign,label: 'Total Revenue',  value: `₹${totalRevenue.toFixed(2)}`, color: 'from-green-500 to-emerald-500' },
+    { icon: Clock,     label: 'Avg Wait Time',  value: `${avgWaitTime} min`,     color: 'from-green-500 to-emerald-500' },
   ];
+
+  // ✅ Toggle stall open/closed via API
+  const handleToggleOpen = async () => {
+    if (!vendorStall) return;
+    setTogglingOpen(true);
+    const next = !isOpen;
+    try {
+      await api.toggleAvailability(parseInt(vendorStall.id), next);
+      setIsOpen(next);
+      toast.success(next ? 'Stall is now Open — accepting orders!' : 'Stall is now Closed — orders paused.');
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to update stall availability');
+    } finally {
+      setTogglingOpen(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-white dark:bg-gray-900 pt-20 pb-12 transition-colors duration-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+
         {/* Header */}
         <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
           <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-2">👨‍🍳 Vendor Dashboard</h1>
@@ -46,22 +79,27 @@ export const VendorDashboard: React.FC = () => {
           className="mb-8"
         >
           {vendorStall ? (
-            <div className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-2xl border border-green-200 dark:border-green-700/40 p-6">
+            <div className={`rounded-2xl border p-6 transition-colors duration-300 ${
+              isOpen
+                ? 'bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-green-200 dark:border-green-700/40'
+                : 'bg-gradient-to-br from-red-50 to-rose-50 dark:from-red-900/20 dark:to-rose-900/20 border-red-200 dark:border-red-700/40'
+            }`}>
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center shadow-lg shadow-green-500/25 flex-shrink-0 overflow-hidden">
-                      {vendorStall.image ? (
-                        <img
-                          src={vendorStall.image}
-                          alt={vendorStall.stallName}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <Store className="w-7 h-7 text-white" />
-                      )}
+                  <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg flex-shrink-0 overflow-hidden transition-colors duration-300 ${
+                    isOpen
+                      ? 'bg-gradient-to-br from-green-500 to-emerald-600 shadow-green-500/25'
+                      : 'bg-gradient-to-br from-red-400 to-rose-500 shadow-red-500/25'
+                  }`}>
+                    {vendorStall.image ? (
+                      <img src={vendorStall.image} alt={vendorStall.stallName} className="w-full h-full object-cover" />
+                    ) : (
+                      <Store className="w-7 h-7 text-white" />
+                    )}
                   </div>
+
                   <div>
-                    <div className="flex items-center gap-2 mb-0.5">
+                    <div className="flex items-center gap-2 mb-0.5 flex-wrap">
                       <h2 className="text-xl font-bold text-gray-900 dark:text-white">{vendorStall.stallName}</h2>
                       <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
                         vendorStall.status === 'new'
@@ -79,19 +117,72 @@ export const VendorDashboard: React.FC = () => {
                     </p>
                   </div>
                 </div>
-                <motion.button
-                  whileHover={{ scale: 1.03, boxShadow: '0 0 20px rgba(34,197,94,0.35)' }}
-                  whileTap={{ scale: 0.97 }}
-                  onClick={() => navigate('/vendor/stall')}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-green-500 to-emerald-500 text-white font-semibold rounded-xl shadow-md shadow-green-500/20 transition-all self-start sm:self-auto"
-                >
-                  <Edit3 className="w-4 h-4" />
-                  Edit Stall
-                </motion.button>
+
+                {/* ✅ Right side: Open/Closed toggle + Edit button */}
+                <div className="flex items-center gap-3 self-start sm:self-auto">
+
+                  {/* Open / Closed toggle */}
+                  <div className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl border transition-colors duration-200 ${
+                    isOpen
+                      ? 'bg-green-100 dark:bg-green-900/30 border-green-300 dark:border-green-600/40'
+                      : 'bg-red-100 dark:bg-red-900/30 border-red-300 dark:border-red-600/40'
+                  }`}>
+                    <span className={`text-xs font-bold select-none ${
+                      isOpen ? 'text-green-700 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                    }`}>
+                      {isOpen ? 'OPEN' : 'CLOSED'}
+                    </span>
+
+                    <button
+                      onClick={handleToggleOpen}
+                      disabled={togglingOpen}
+                      className="relative flex-shrink-0 focus:outline-none disabled:opacity-60"
+                      title={isOpen ? 'Click to close stall' : 'Click to open stall'}
+                    >
+                      {togglingOpen ? (
+                        <Loader2 className="w-7 h-7 animate-spin text-gray-400" />
+                      ) : isOpen ? (
+                        <ToggleRight className="w-8 h-8 text-green-500 dark:text-green-400" />
+                      ) : (
+                        <ToggleLeft className="w-8 h-8 text-red-400 dark:text-red-500" />
+                      )}
+                    </button>
+                  </div>
+
+                  <motion.button
+                    whileHover={{ scale: 1.03, boxShadow: '0 0 20px rgba(34,197,94,0.35)' }}
+                    whileTap={{ scale: 0.97 }}
+                    onClick={() => navigate('/vendor/stall')}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-green-500 to-emerald-500 text-white font-semibold rounded-xl shadow-md shadow-green-500/20 transition-all"
+                  >
+                    <Edit3 className="w-4 h-4" />
+                    Edit Stall
+                  </motion.button>
+                </div>
               </div>
+
+              {/* ✅ Closed warning message */}
+              {!isOpen && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="mt-4 flex items-center gap-2 bg-red-100 dark:bg-red-900/20 border border-red-200 dark:border-red-700/40 rounded-xl px-4 py-3"
+                >
+                  <span className="text-red-500 text-base">⛔</span>
+                  <p className="text-red-600 dark:text-red-400 text-sm font-medium">
+                    Your stall is currently closed. Customers can see your menu but cannot place orders until you reopen.
+                  </p>
+                </motion.div>
+              )}
+
+              {/* Menu item pills */}
               <div className="mt-5 flex flex-wrap gap-2">
                 {vendorStall.items.map((item) => (
-                  <div key={item.id} className="flex items-center gap-2 bg-white dark:bg-gray-800/60 px-3 py-1.5 rounded-xl border border-green-100 dark:border-green-700/30 text-sm">
+                  <div
+                    key={item.id}
+                    className="flex items-center gap-2 bg-white dark:bg-gray-800/60 px-3 py-1.5 rounded-xl border border-green-100 dark:border-green-700/30 text-sm"
+                  >
                     <span className="font-medium text-gray-800 dark:text-gray-200">{item.name}</span>
                     <span className="text-green-600 dark:text-green-400 font-semibold">₹{item.price}</span>
                   </div>
@@ -225,7 +316,7 @@ export const VendorDashboard: React.FC = () => {
                         </div>
                       </div>
                       <span className={`inline-block px-2 py-1 rounded-full text-xs font-semibold ${
-                        order.status === 'placed' ? 'bg-blue-500/20 text-blue-600 dark:text-blue-400'
+                        order.status === 'placed'    ? 'bg-blue-500/20 text-blue-600 dark:text-blue-400'
                         : order.status === 'preparing' ? 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400'
                         : 'bg-green-500/20 text-green-600 dark:text-green-400'
                       }`}>
@@ -277,9 +368,9 @@ export const VendorDashboard: React.FC = () => {
                   <div className="flex items-center gap-4">
                     <p className="text-xl font-bold text-green-600 dark:text-green-400">₹{order.total.toFixed(2)}</p>
                     <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                      order.status === 'placed' ? 'bg-blue-500/20 text-blue-600 dark:text-blue-400'
+                      order.status === 'placed'    ? 'bg-blue-500/20 text-blue-600 dark:text-blue-400'
                       : order.status === 'preparing' ? 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400'
-                      : order.status === 'ready' ? 'bg-green-500/20 text-green-600 dark:text-green-400'
+                      : order.status === 'ready'     ? 'bg-green-500/20 text-green-600 dark:text-green-400'
                       : 'bg-purple-500/20 text-purple-600 dark:text-purple-400'
                     }`}>
                       {order.status}
@@ -290,6 +381,7 @@ export const VendorDashboard: React.FC = () => {
             </div>
           )}
         </motion.div>
+
       </div>
     </div>
   );
