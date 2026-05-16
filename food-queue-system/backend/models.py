@@ -11,6 +11,7 @@ class Stall(Base):
     avatar     = Column(String, nullable=True)  # preset avatar choice
     image_url  = Column(String, nullable=True)
     rating     = Column(Float, default=4.0)
+    is_open    = Column(Boolean, default=True)   # ✅ NEW: vendor can open/close their stall
     owner_id   = Column(Integer, ForeignKey("users.id"))  # vendor who owns this stall
     owner      = relationship("User", back_populates="stalls")
     menu_items = relationship("MenuItem", back_populates="stall")
@@ -53,10 +54,10 @@ class Order(Base):
 
 class OrderItem(Base):
     __tablename__ = "order_items"
-    id           = Column(Integer, primary_key=True, index=True)
-    order_id     = Column(Integer, ForeignKey("orders.id"))
-    menu_item_id = Column(Integer, ForeignKey("menu_items.id"))
-    quantity     = Column(Integer)
-    price          = Column(Float, default=0.0)        # ← add this
-    menu_item_name = Column(String, default="")        # ← add this
-    order        = relationship("Order", back_populates="items")
+    id             = Column(Integer, primary_key=True, index=True)
+    order_id       = Column(Integer, ForeignKey("orders.id"))
+    menu_item_id   = Column(Integer, ForeignKey("menu_items.id"))
+    quantity       = Column(Integer)
+    price          = Column(Float, default=0.0)
+    menu_item_name = Column(String, default="")
+    order          = relationship("Order", back_populates="items")

@@ -1,11 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router';
-import { motion } from 'motion/react';
-import { ArrowLeft, Clock, ChefHat, Package, CheckCircle, Loader2, Wifi, WifiOff } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import {
+  ArrowLeft, Clock, ChefHat, Package, CheckCircle,
+  Loader2, Wifi, WifiOff, Trash2, AlertTriangle,
+} from 'lucide-react';
 import { useApp, Order } from '../context/AppContext';
 import { StatusBadge } from '../components/StatusBadge';
 import { api } from '../../api/client';
 import { useQueueStream } from '../../hooks/useQueueStream';
+import { toast } from 'sonner';
 
 export const OrderTracking: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -17,17 +21,17 @@ export const OrderTracking: React.FC = () => {
   const [notFound, setNotFound] = useState(false);
   const [progress, setProgress] = useState(0);
 
+  // ✅ Cancel-order state
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+
   const contextOrder = orders.find((o) => o.id === id);
   const order = contextOrder || fetchedOrder;
 
-  // ✅ SSE: Connect to live queue stream for this order's stall.
-  // stallId is only known once we have the order, so we pass it conditionally.
-  // useQueueStream handles null gracefully (returns loading=true, data=null).
+  // SSE: Connect to live queue stream for this order's stall.
   const { data: queueData, connectionMode } = useQueueStream(order?.stallId);
 
   // Derive live position from SSE queue data.
-  // This replaces the old local-context calculation which was wrong —
-  // context only contains the current customer's orders, not all stall orders.
   const livePosition = queueData
     ? queueData.orders.findIndex(o => o.token === order?.token) + 1
     : 0;
@@ -36,7 +40,7 @@ export const OrderTracking: React.FC = () => {
     ? (queuePosition - 1) * 5
     : order?.estimatedTime ?? 15;
 
-  // ✅ TEAMMATE: fetches fresh orders on mount then falls back to direct API call.
+  // Fetch order on mount
   useEffect(() => {
     if (!id) return;
 
@@ -77,16 +81,12 @@ export const OrderTracking: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  // ✅ SSE: When live queue data arrives, sync order status into context
-  // if it has changed server-side. This is what makes the timeline update
-  // without the customer needing to refresh.
+  // SSE: sync order status into context when it changes server-side
   useEffect(() => {
     if (!queueData || !order) return;
     const liveOrder = queueData.orders.find(o => o.token === order.token);
     if (liveOrder && liveOrder.status !== order.status) {
-      // Update context so the timeline re-renders
       updateOrderStatus(order.id, liveOrder.status as any);
-      // Also update fetchedOrder if that's what we're rendering
       setFetchedOrder(prev =>
         prev ? { ...prev, status: liveOrder.status as any } : prev
       );
@@ -101,6 +101,22 @@ export const OrderTracking: React.FC = () => {
     };
     setProgress(progressMap[order.status] ?? 25);
   }, [order?.status]);
+
+  // ✅ Cancel order handler
+  const handleCancelOrder = async () => {
+    if (!order || !id) return;
+    setCancelling(true);
+    try {
+      await api.deleteOrder(parseInt(id));
+      toast.success('Order cancelled successfully.');
+      navigate('/');
+    } catch (err: any) {
+      toast.error(err?.message || 'Could not cancel the order. Please try again.');
+    } finally {
+      setCancelling(false);
+      setShowCancelConfirm(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -140,6 +156,9 @@ export const OrderTracking: React.FC = () => {
 
   const currentStepIndex = steps.findIndex((s) => s.status === order.status);
 
+  // ✅ Cancel is only offered while the order is still "placed"
+  const canCancel = order.status === 'placed';
+
   return (
     <div className="min-h-screen bg-white dark:bg-gray-900 pt-20 pb-12 transition-colors duration-200">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -171,7 +190,7 @@ export const OrderTracking: React.FC = () => {
           <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-2">Track Your Order</h1>
           <p className="text-gray-600 dark:text-gray-400">{order.stallName}</p>
 
-          {/* ✅ SSE connection indicator */}
+          {/* SSE connection indicator */}
           <div className="flex items-center justify-center gap-2 mt-2">
             {connectionMode === 'sse' && (
               <span className="flex items-center gap-1.5 text-xs text-green-600 dark:text-green-400">
@@ -351,6 +370,72 @@ export const OrderTracking: React.FC = () => {
             </div>
           </motion.div>
         )}
+
+        {/* ✅ Cancel Order — only shown while order is "placed" */}
+        <AnimatePresence>
+          {canCancel && (
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 8 }}
+              transition={{ delay: 0.7 }}
+              className="mt-6"
+            >
+              {!showCancelConfirm ? (
+                /* ── Trigger button ── */
+                <button
+                  onClick={() => setShowCancelConfirm(true)}
+                  className="w-full flex items-center justify-center gap-2 py-3.5 px-6 rounded-xl border-2 border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 font-semibold hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                >
+                  <Trash2 className="w-5 h-5" />
+                  Cancel Order
+                </button>
+              ) : (
+                /* ── Inline confirmation panel ── */
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.97 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.97 }}
+                  className="rounded-xl border-2 border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20 p-5"
+                >
+                  <div className="flex items-start gap-3 mb-4">
+                    <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-semibold text-red-700 dark:text-red-400 text-sm">
+                        Cancel this order?
+                      </p>
+                      <p className="text-red-600 dark:text-red-500 text-xs mt-1">
+                        This action cannot be undone. Once cancelled, your order will be permanently removed.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => setShowCancelConfirm(false)}
+                      disabled={cancelling}
+                      className="flex-1 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-semibold text-sm hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
+                    >
+                      Keep Order
+                    </button>
+                    <button
+                      onClick={handleCancelOrder}
+                      disabled={cancelling}
+                      className="flex-1 py-2.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-semibold text-sm transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+                    >
+                      {cancelling ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="w-4 h-4" />
+                      )}
+                      {cancelling ? 'Cancelling…' : 'Yes, Cancel'}
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
       </div>
     </div>
   );

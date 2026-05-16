@@ -33,6 +33,16 @@ def place_order(data: schemas.OrderCreate, db: Session = Depends(get_db),
     if current_user.role != "customer":
         raise HTTPException(status_code=403, detail="Only customers can place orders")
 
+    # ✅ Block orders if the stall is currently closed
+    stall = db.query(models.Stall).filter(models.Stall.id == data.stall_id).first()
+    if not stall:
+        raise HTTPException(status_code=404, detail="Stall not found")
+    if not stall.is_open:
+        raise HTTPException(
+            status_code=400,
+            detail="This stall is currently closed and not accepting orders"
+        )
+
     total = 0
     order_items_data = []
 
@@ -84,14 +94,6 @@ def my_orders(db: Session = Depends(get_db), current_user=Depends(get_current_us
 
 
 # ✅ UPDATED: optional ?status= query param filter.
-# VendorOrders.tsx has filter tabs (all/placed/preparing/ready) but previously
-# filtered entirely in the frontend against stale in-memory data. With this param,
-# the "placed" tab fetches only placed orders directly from the DB — always fresh.
-#
-# Usage:
-#   GET /orders              → all vendor orders (unchanged behaviour)
-#   GET /orders?status=placed     → placed only
-#   GET /orders?status=preparing  → preparing only
 @router.get("", response_model=List[schemas.OrderResponse])
 def vendor_orders(
     status: Optional[str] = Query(
@@ -141,7 +143,7 @@ def update_status(order_id: int, data: schemas.OrderStatusUpdate,
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
 
-    # ✅ Vendor ownership check — vendor can only update orders for their own stall
+    # ✅ Vendor ownership check
     stall = db.query(models.Stall).filter(models.Stall.owner_id == current_user.id).first()
     if not stall or order.stall_id != stall.id:
         raise HTTPException(status_code=403, detail="This order does not belong to your stall")
@@ -162,3 +164,39 @@ def update_status(order_id: int, data: schemas.OrderStatusUpdate,
     order.status = data.status
     db.commit()
     return {"message": "Status updated", "status": order.status}
+
+
+# ✅ NEW: Customer can cancel their own order, but only while it is still "placed".
+# Once the vendor marks it as "preparing", cancellation is no longer allowed.
+@router.delete("/{order_id}")
+def cancel_order(
+    order_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Customer cancels an order before the vendor starts preparing it."""
+    if current_user.role != "customer":
+        raise HTTPException(status_code=403, detail="Only customers can cancel orders")
+
+    order = db.query(models.Order).filter(models.Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    # Ownership check — customer can only cancel their own order
+    if order.customer_id != current_user.id:
+        raise HTTPException(status_code=403, detail="You can only cancel your own orders")
+
+    # ✅ Only "placed" orders can be cancelled — once preparing has started it's too late
+    if order.status != "placed":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot cancel an order that is already '{order.status}'. "
+                   "Cancellation is only allowed before the vendor starts preparing."
+        )
+
+    # Delete associated order items first (FK constraint), then the order itself
+    db.query(models.OrderItem).filter(models.OrderItem.order_id == order.id).delete()
+    db.delete(order)
+    db.commit()
+
+    return {"message": "Order cancelled successfully", "order_id": order_id}

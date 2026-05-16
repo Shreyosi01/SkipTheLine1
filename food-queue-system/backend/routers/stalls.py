@@ -29,7 +29,8 @@ def create_stall(data: schemas.StallCreate, db: Session = Depends(get_db),
     db.refresh(stall)
     return stall
 
-# ✅ FIX #1: /vendor/me MUST come before /{stall_id}
+
+# ✅ /vendor/me MUST come before /{stall_id}
 # FastAPI matches routes top-down. If /{stall_id} came first,
 # "vendor" would be treated as an integer stall ID → 422 error.
 @router.get("/vendor/me", response_model=schemas.StallResponse)
@@ -44,10 +45,12 @@ def get_my_stall(db: Session = Depends(get_db),
         raise HTTPException(status_code=404, detail="Stall not found")
     return stall
 
+
 @router.get("", response_model=List[schemas.StallResponse])
 def list_all_stalls(db: Session = Depends(get_db)):
     """List all stalls"""
     return db.query(models.Stall).all()
+
 
 @router.get("/{stall_id}", response_model=schemas.StallResponse)
 def get_stall(stall_id: int, db: Session = Depends(get_db)):
@@ -56,6 +59,7 @@ def get_stall(stall_id: int, db: Session = Depends(get_db)):
     if not stall:
         raise HTTPException(status_code=404, detail="Stall not found")
     return stall
+
 
 @router.put("/{stall_id}", response_model=schemas.StallResponse)
 def update_stall(stall_id: int, data: schemas.StallCreate,
@@ -72,6 +76,34 @@ def update_stall(stall_id: int, data: schemas.StallCreate,
     stall.name = data.name
     stall.category = data.category
     stall.avatar = data.avatar
+    db.commit()
+    db.refresh(stall)
+    return stall
+
+
+# ✅ NEW: Toggle stall open/closed status
+# Vendor sends { "is_open": true/false } to open or close their stall.
+# When closed, customers will see the stall as unavailable and cannot place orders.
+# Route is placed after /vendor/me and before /{stall_id} (no conflict — different path).
+@router.patch("/{stall_id}/availability", response_model=schemas.StallResponse)
+def toggle_stall_availability(
+    stall_id: int,
+    data: schemas.StallAvailabilityUpdate,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Vendor opens or closes their stall for orders"""
+    if current_user.role != "vendor":
+        raise HTTPException(status_code=403, detail="Only vendors can change stall availability")
+
+    stall = db.query(models.Stall).filter(models.Stall.id == stall_id).first()
+    if not stall:
+        raise HTTPException(status_code=404, detail="Stall not found")
+
+    if stall.owner_id != current_user.id:
+        raise HTTPException(status_code=403, detail="You can only update your own stall")
+
+    stall.is_open = data.is_open
     db.commit()
     db.refresh(stall)
     return stall

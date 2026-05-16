@@ -83,6 +83,15 @@ export const api = {
   getStall: (stallId: number) =>
     fetch(`${BASE_URL}/stalls/${stallId}`).then(handleResponse),
 
+  // ✅ NEW: Vendor toggles their stall open or closed.
+  // Closed stalls are visible to customers but block new orders.
+  toggleStallAvailability: (stallId: number, isOpen: boolean) =>
+    fetch(`${BASE_URL}/stalls/${stallId}/availability`, {
+      method: "PATCH",
+      headers: authHeaders(),
+      body: JSON.stringify({ is_open: isOpen }),
+    }).then(handleResponse),
+
   // ── Menu ────────────────────────────────────────
   getMenu: (stallId: number) =>
     fetch(`${BASE_URL}/menu/${stallId}`).then(handleResponse),
@@ -101,7 +110,7 @@ export const api = {
       body: JSON.stringify(data),
     }).then(handleResponse),
 
-  // ✅ NEW: Toggle availability without sending the full item body
+  // ✅ Toggle menu item availability without sending the full item body
   toggleAvailability: (itemId: number, isAvailable: boolean) =>
     fetch(`${BASE_URL}/menu/${itemId}/availability`, {
       method: "PATCH",
@@ -133,7 +142,7 @@ export const api = {
       headers: authHeaders(),
     }).then(handleResponse),
 
-  // ✅ UPDATED: optional status filter — pass undefined for all orders,
+  // ✅ optional status filter — pass undefined for all orders,
   // or a status string to fetch only that status from the DB
   vendorOrders: (status?: string) =>
     fetch(
@@ -148,6 +157,15 @@ export const api = {
       body: JSON.stringify({ status }),
     }).then(handleResponse),
 
+  // ✅ NEW: Customer cancels their own order.
+  // Only succeeds if the order status is still "placed".
+  // Returns 400 if the vendor has already started preparing.
+  deleteOrder: (orderId: number) =>
+    fetch(`${BASE_URL}/orders/${orderId}`, {
+      method: "DELETE",
+      headers: authHeaders(),
+    }).then(handleResponse),
+
   // ── Queue ───────────────────────────────────────
   getQueue: (stallId: number) =>
     fetch(`${BASE_URL}/queue/${stallId}`).then(handleResponse),
@@ -157,7 +175,7 @@ export const api = {
       headers: authHeaders(),
     }).then(handleResponse),
 
-  // ✅ NEW: Returns the SSE stream URL — callers pass this to new EventSource(url)
+  // ✅ Returns the SSE stream URL — callers pass this to new EventSource(url)
   // Not a fetch call — EventSource handles the connection itself
   getQueueStreamUrl: (stallId: number) =>
     `${BASE_URL}/queue/${stallId}/stream`,
