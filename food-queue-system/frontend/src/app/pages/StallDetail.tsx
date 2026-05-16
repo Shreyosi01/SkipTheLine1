@@ -1,7 +1,7 @@
 import React from 'react';
 import { useParams, useNavigate } from 'react-router';
 import { motion } from 'motion/react';
-import { ArrowLeft, Plus, Minus, Store } from 'lucide-react';
+import { ArrowLeft, Plus, Minus, Store, CircleX, CircleCheck } from 'lucide-react';
 import { QueueMeter } from '../components/QueueMeter';
 import { useApp } from '../context/AppContext';
 import { useQueueStream } from '../../hooks/useQueueStream';
@@ -15,6 +15,9 @@ export const StallDetail: React.FC = () => {
   const stall = stalls.find((s) => String(s.id) === String(id));
 
   const { data: queueData, connectionMode, loading: queueLoading } = useQueueStream(id);
+
+  // ✅ isOpen falls back to true for stalls that pre-date the field
+  const isOpen = (stall as any)?.isOpen ?? true;
 
   // Helper: get quantity of a given item in cart
   const getCartQuantity = (itemId: string): number => {
@@ -40,6 +43,10 @@ export const StallDetail: React.FC = () => {
   }
 
   const handleAddToCart = (item: any) => {
+    if (!isOpen) {
+      toast.error('This stall is currently closed and not accepting orders.');
+      return;
+    }
     addToCart({
       id: String(item.id),
       stallId: String(stall.id),
@@ -55,8 +62,6 @@ export const StallDetail: React.FC = () => {
     if (qty <= 1) {
       removeFromCart(String(item.id));
     } else {
-      // addToCart with quantity -1 will subtract via the context logic;
-      // since AppContext adds quantity, we use a direct removeFromCart + re-add trick:
       removeFromCart(String(item.id));
       addToCart({
         id: String(item.id),
@@ -113,11 +118,44 @@ export const StallDetail: React.FC = () => {
                     {stall.category}
                   </div>
                 )}
-                <h1 className="text-3xl md:text-4xl font-bold text-white">{stall.stallName}</h1>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <h1 className="text-3xl md:text-4xl font-bold text-white">{stall.stallName}</h1>
+                  {/* ✅ Open / Closed badge on the hero */}
+                  {isOpen ? (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-green-500/90 text-white backdrop-blur-sm">
+                      <CircleCheck className="w-3.5 h-3.5" />
+                      Open
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-red-500/90 text-white backdrop-blur-sm">
+                      <CircleX className="w-3.5 h-3.5" />
+                      Closed
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           </div>
         </motion.div>
+
+        {/* ✅ Closed stall notice banner — shown below hero when stall is closed */}
+        {!isOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex items-center gap-3 px-5 py-4 mb-6 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700/40"
+          >
+            <CircleX className="w-5 h-5 text-red-500 flex-shrink-0" />
+            <div>
+              <p className="text-sm font-semibold text-red-700 dark:text-red-400">
+                This stall is currently closed
+              </p>
+              <p className="text-xs text-red-500 dark:text-red-500 mt-0.5">
+                The vendor is not accepting orders right now. Check back later!
+              </p>
+            </div>
+          </motion.div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Menu Section */}
@@ -138,7 +176,9 @@ export const StallDetail: React.FC = () => {
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: index * 0.07 }}
-                    className="bg-gray-50 dark:bg-gray-800/50 rounded-xl overflow-hidden border border-gray-200 dark:border-purple-500/20 hover:border-blue-300 dark:hover:border-cyan-500/50 transition-all"
+                    className={`bg-gray-50 dark:bg-gray-800/50 rounded-xl overflow-hidden border border-gray-200 dark:border-purple-500/20 hover:border-blue-300 dark:hover:border-cyan-500/50 transition-all ${
+                      !isOpen ? 'opacity-60' : ''
+                    }`}
                   >
                     <div className="p-4">
                       <div className="flex items-center justify-between gap-4">
@@ -152,8 +192,13 @@ export const StallDetail: React.FC = () => {
                           </span>
                         </div>
 
-                        {/* Add button or quantity stepper */}
-                        {qty === 0 ? (
+                        {/* ✅ Add/stepper disabled when stall is closed */}
+                        {!isOpen ? (
+                          <div className="flex items-center gap-2 px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 font-semibold rounded-lg flex-shrink-0 cursor-not-allowed select-none">
+                            <Plus className="w-4 h-4" />
+                            Add
+                          </div>
+                        ) : qty === 0 ? (
                           <motion.button
                             whileHover={{ scale: 1.05 }}
                             whileTap={{ scale: 0.95 }}

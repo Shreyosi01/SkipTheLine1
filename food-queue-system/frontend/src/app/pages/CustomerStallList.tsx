@@ -12,6 +12,8 @@ import {
   UtensilsCrossed,
   Clock,
   BadgeCheck,
+  CircleCheck,
+  CircleX,
 } from 'lucide-react';
 import { useApp, Stall, StallItem } from '../context/AppContext';
 
@@ -47,6 +49,20 @@ const MenuItemRow: React.FC<{ item: StallItem; index: number }> = ({ item, index
   </motion.div>
 );
 
+// ─── Open / Closed pill ───────────────────────────────────────────────────────
+const AvailabilityPill: React.FC<{ isOpen: boolean }> = ({ isOpen }) =>
+  isOpen ? (
+    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300">
+      <CircleCheck className="w-3 h-3" />
+      Open
+    </span>
+  ) : (
+    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400">
+      <CircleX className="w-3 h-3" />
+      Closed
+    </span>
+  );
+
 // ─── Stall card ───────────────────────────────────────────────────────────────
 const StallCard: React.FC<{
   stall: Stall;
@@ -57,6 +73,9 @@ const StallCard: React.FC<{
   const items = validItems(stall);
   const minPrice = items.length ? Math.min(...items.map((i) => i.price)) : 0;
   const maxPrice = items.length ? Math.max(...items.map((i) => i.price)) : 0;
+
+  // isOpen falls back to true for stalls that pre-date the field
+  const isOpen = (stall as any).isOpen ?? true;
 
   const GRADIENTS = [
     'from-blue-500 via-cyan-500 to-indigo-500',
@@ -78,10 +97,10 @@ const StallCard: React.FC<{
         isExpanded
           ? 'border-blue-300 dark:border-cyan-500/40 shadow-lg shadow-blue-500/10 dark:shadow-cyan-500/10'
           : 'border-gray-200 dark:border-gray-700/60 hover:border-blue-200 dark:hover:border-cyan-700/50 hover:shadow-md hover:shadow-blue-500/5'
-      } bg-white dark:bg-gray-800/60`}
+      } bg-white dark:bg-gray-800/60 ${!isOpen ? 'opacity-75' : ''}`}
     >
       {/* Gradient top stripe */}
-      <div className={`h-2 w-full bg-gradient-to-r ${gradient}`} />
+      <div className={`h-2 w-full bg-gradient-to-r ${gradient} ${!isOpen ? 'grayscale' : ''}`} />
 
       {/* Clickable header */}
       <button
@@ -93,7 +112,7 @@ const StallCard: React.FC<{
           <div className="flex items-center gap-4 min-w-0">
             {/* Avatar */}
             <div
-              className={`w-12 h-12 rounded-xl bg-gradient-to-br ${gradient} flex items-center justify-center text-white font-black text-xl shadow-md flex-shrink-0`}
+              className={`w-12 h-12 rounded-xl bg-gradient-to-br ${gradient} flex items-center justify-center text-white font-black text-xl shadow-md flex-shrink-0 ${!isOpen ? 'grayscale' : ''}`}
             >
               {stall.stallName.charAt(0).toUpperCase()}
             </div>
@@ -103,6 +122,10 @@ const StallCard: React.FC<{
                 <h3 className="font-bold text-gray-900 dark:text-white text-lg leading-tight truncate">
                   {stall.stallName}
                 </h3>
+
+                {/* ✅ Open / Closed badge */}
+                <AvailabilityPill isOpen={isOpen} />
+
                 {/* New / Updated badge */}
                 <span
                   className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold ${
@@ -161,6 +184,20 @@ const StallCard: React.FC<{
             className="overflow-hidden"
           >
             <div className="px-5 pb-5 border-t border-gray-100 dark:border-gray-700/50 pt-4 space-y-2">
+              {/* ✅ Closed notice banner */}
+              {!isOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: -6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex items-center gap-2 px-4 py-3 mb-3 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700/40"
+                >
+                  <CircleX className="w-4 h-4 text-red-500 flex-shrink-0" />
+                  <p className="text-sm text-red-600 dark:text-red-400 font-medium">
+                    This stall is currently closed. Orders are not being accepted.
+                  </p>
+                </motion.div>
+              )}
+
               <p className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3">
                 Menu
               </p>
@@ -223,7 +260,6 @@ const EmptyState: React.FC<{ isFiltered: boolean }> = ({ isFiltered }) => (
 
 // ─── Main page  (route: "/stalls") ───────────────────────────────────────────
 export const CustomerStallList: React.FC = () => {
-  // ✅ reads from AppContext — same array vendors write to via createStall / updateStall
   const { stalls } = useApp();
   const [search, setSearch] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -248,6 +284,8 @@ export const CustomerStallList: React.FC = () => {
   );
   const newCount = stalls.filter((s) => s.status === 'new').length;
   const updatedCount = stalls.filter((s) => s.status === 'updated').length;
+  // ✅ Count open stalls for the summary bar
+  const openCount = stalls.filter((s) => (s as any).isOpen ?? true).length;
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pt-20 pb-16 transition-colors duration-200">
@@ -284,6 +322,12 @@ export const CustomerStallList: React.FC = () => {
             <span className="px-3 py-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-full text-xs font-semibold text-gray-600 dark:text-gray-300">
               {totalItems} menu items
             </span>
+            {/* ✅ Open stall count pill */}
+            {openCount > 0 && (
+              <span className="px-3 py-1.5 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-700/40 rounded-full text-xs font-bold text-green-700 dark:text-green-300 flex items-center gap-1">
+                <CircleCheck className="w-3 h-3" /> {openCount} open now
+              </span>
+            )}
             {newCount > 0 && (
               <span className="px-3 py-1.5 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700/40 rounded-full text-xs font-bold text-blue-700 dark:text-blue-300 flex items-center gap-1">
                 <Sparkles className="w-3 h-3" /> {newCount} new

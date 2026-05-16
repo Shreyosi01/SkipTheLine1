@@ -49,10 +49,16 @@ class StallResponse(BaseModel):
     avatar: Optional[str]
     image_url: Optional[str]
     rating: float
+    is_open: bool = True          # ✅ NEW: whether the stall is currently accepting orders
     owner_id: int
 
     class Config:
         from_attributes = True
+
+# ✅ NEW: Used by PATCH /stalls/{stall_id}/availability
+# Vendor sends just { "is_open": false } to close/open their stall.
+class StallAvailabilityUpdate(BaseModel):
+    is_open: bool
 
 
 # ── Menu ──────────────────────────────────────────
