@@ -37,7 +37,7 @@ export const OrderConfirmation: React.FC = () => {
 
   useEffect(() => {
     if (!order) {
-      navigate('/', { replace: true });
+      navigate('/dashboard', { replace: true });
     }
   }, [order, navigate]);
 
@@ -117,6 +117,43 @@ export const OrderConfirmation: React.FC = () => {
               </div>
             </div>
           </div>
+        </motion.div>
+
+        {/* Payment Details Banner */}
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.65 }}
+          className={`rounded-2xl p-5 mb-5 border flex items-center justify-between shadow-sm ${
+            order.paymentMode === 'upi'
+              ? 'bg-green-50/50 dark:bg-green-950/20 border-green-200 dark:border-green-800 text-green-800 dark:text-green-300'
+              : 'bg-amber-50/50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300'
+          }`}
+        >
+          <div className="flex items-center gap-3">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+              order.paymentMode === 'upi' ? 'bg-green-100 dark:bg-green-900/35' : 'bg-amber-100 dark:bg-amber-900/35'
+            }`}>
+              {order.paymentMode === 'upi' ? <CheckCircle2 className="w-5 h-5" /> : <Clock className="w-5 h-5" />}
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider">
+                {order.paymentMode === 'upi' ? 'Online Payment Verified' : 'Pay at Counter'}
+              </p>
+              <p className="text-sm font-medium opacity-90 mt-0.5">
+                {order.paymentMode === 'upi'
+                  ? 'Paid ₹' + order.total.toFixed(2) + ' via UPI QR Scanner'
+                  : 'Please pay ₹' + order.total.toFixed(2) + ' at physical stall counter'}
+              </p>
+            </div>
+          </div>
+          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+            order.paymentStatus === 'paid'
+              ? 'bg-green-200/60 dark:bg-green-800/40 text-green-700 dark:text-green-300'
+              : 'bg-amber-200/60 dark:bg-amber-800/40 text-amber-700 dark:text-amber-300'
+          }`}>
+            {order.paymentStatus === 'paid' ? 'Paid' : 'Pending'}
+          </span>
         </motion.div>
 
         {/* Order Summary */}
@@ -227,7 +264,7 @@ export const OrderConfirmation: React.FC = () => {
             Track Order <ArrowRight className="w-4 h-4" />
           </Link>
           <Link
-            to="/"
+            to="/dashboard"
             className="flex-1 flex items-center justify-center gap-2 px-5 py-3.5 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 font-semibold rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all"
           >
             <Home className="w-4 h-4" /> Back to Home

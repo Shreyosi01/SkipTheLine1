@@ -49,7 +49,7 @@ export const Auth: React.FC = () => {
           //    otherwise the vendor needs to create their stall first.
           navigate(loggedInUser.stallId ? '/vendor' : '/vendor/stall');
         } else {
-          navigate('/');
+          navigate('/dashboard');
         }
       } else {
         if (phone.length !== 10) {
@@ -60,7 +60,7 @@ export const Auth: React.FC = () => {
         await registerUser(name, email, password, selectedMode, undefined, fullPhone);
         toast.success('Account created successfully!');
         // New vendor always needs to create their stall first
-        navigate(selectedMode === 'vendor' ? '/vendor/stall' : '/');
+        navigate(selectedMode === 'vendor' ? '/vendor/stall' : '/dashboard');
       }
     } catch (err: any) {
       toast.error(err.message || 'Something went wrong');

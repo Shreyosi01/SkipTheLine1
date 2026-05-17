@@ -96,7 +96,7 @@ export const VendorQueue: React.FC = () => {
   const { orders, user } = useApp();
   // Filter orders for this vendor's stall only
   const [queueOrders, setQueueOrders] = React.useState(
-    orders.filter((o) => o.status !== 'completed' && o.stallId === user?.stallId)
+    orders.filter((o) => o.status !== 'completed' && o.status !== 'cancelled' && o.stallId === user?.stallId)
   );
 
   const moveItem = (dragIndex: number, hoverIndex: number) => {

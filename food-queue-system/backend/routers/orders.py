@@ -65,6 +65,8 @@ def place_order(data: schemas.OrderCreate, db: Session = Depends(get_db),
         customer_id=current_user.id,
         stall_id=data.stall_id,
         status="placed",
+        payment_mode=data.payment_mode,
+        payment_status=data.payment_status,
         queue_number=get_queue_number(db, data.stall_id),
         total_price=total
     )
@@ -143,9 +145,9 @@ def update_status(order_id: int, data: schemas.OrderStatusUpdate,
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
 
-    # ✅ Vendor ownership check
-    stall = db.query(models.Stall).filter(models.Stall.owner_id == current_user.id).first()
-    if not stall or order.stall_id != stall.id:
+    # ✅ Vendor ownership check (Permissive for unassigned seeded stalls)
+    stall = db.query(models.Stall).filter(models.Stall.id == order.stall_id).first()
+    if stall and stall.owner_id and stall.owner_id != current_user.id:
         raise HTTPException(status_code=403, detail="This order does not belong to your stall")
 
     # ✅ Forward-only transition enforcement
@@ -194,9 +196,32 @@ def cancel_order(
                    "Cancellation is only allowed before the vendor starts preparing."
         )
 
-    # Delete associated order items first (FK constraint), then the order itself
-    db.query(models.OrderItem).filter(models.OrderItem.order_id == order.id).delete()
-    db.delete(order)
+    order.status = "cancelled"
     db.commit()
 
     return {"message": "Order cancelled successfully", "order_id": order_id}
+
+
+@router.patch("/{order_id}/payment", response_model=schemas.OrderResponse)
+def update_payment_status(
+    order_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """Vendor marks a counter order as paid."""
+    if current_user.role != "vendor":
+        raise HTTPException(status_code=403, detail="Only vendors can manage payments")
+
+    order = db.query(models.Order).filter(models.Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    # Verify that the vendor owns the stall for this order (Permissive for unassigned seeded stalls)
+    stall = db.query(models.Stall).filter(models.Stall.id == order.stall_id).first()
+    if stall and stall.owner_id and stall.owner_id != current_user.id:
+        raise HTTPException(status_code=403, detail="You can only manage payments for your own stall")
+
+    order.payment_status = "paid"
+    db.commit()
+    db.refresh(order)
+    return order

@@ -16,48 +16,12 @@ export const Cart: React.FC = () => {
   // Derive stall ID from first cart item for the back button
   const stallId = cart[0]?.stallId;
 
-  const handleCheckout = async () => {
+  const handleCheckout = () => {
     if (cart.length === 0) {
       toast.error('Your cart is empty!');
       return;
     }
-
-    try {
-      const orderPayload = {
-        stall_id: parseInt(cart[0].stallId),
-        items: cart.map((item) => ({
-          menu_item_id: parseInt(item.id),
-          quantity: item.quantity,
-        })),
-      };
-
-      const res = await api.placeOrder(orderPayload);
-
-      const stallName = stalls.find((s) => s.id === cart[0].stallId)?.stallName || 'Stall';
-
-      const order = {
-        id: String(res.id),
-        stallId: String(res.stall_id),
-        stallName,
-        items: cart.map((item) => ({
-          id: item.id,
-          name: item.name,
-          price: item.price,
-          quantity: item.quantity,
-        })),
-        total: res.total_price,
-        token: res.token,
-        status: res.status as any,
-        estimatedTime: 15,
-        timestamp: new Date(res.created_at),
-      };
-
-      addOrder(order);
-      clearCart();
-      navigate('/order/confirmation', { state: { order } });
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to place order');
-    }
+    navigate('/payment');
   };
 
   const updateQuantity = (itemId: string, change: number) => {
@@ -115,7 +79,7 @@ export const Cart: React.FC = () => {
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              onClick={() => navigate('/')}
+              onClick={() => navigate('/dashboard')}
               className="px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-semibold rounded-lg"
             >
               Browse Stalls

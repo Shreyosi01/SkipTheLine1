@@ -66,6 +66,8 @@ export const OrderTracking: React.FC = () => {
           total: res.total_price,
           token: res.token,
           status: res.status,
+          paymentMode: res.payment_mode || 'counter',
+          paymentStatus: res.payment_status || 'pending',
           estimatedTime: 15,
           timestamp: new Date(res.created_at),
         };
@@ -110,7 +112,7 @@ export const OrderTracking: React.FC = () => {
       await api.deleteOrder(parseInt(id));
       await fetchMyOrders();
       toast.success('Order cancelled successfully.');
-      navigate('/');
+      navigate('/dashboard');
     } catch (err: any) {
       toast.error(err?.message || 'Could not cancel the order. Please try again.');
     } finally {
@@ -136,7 +138,7 @@ export const OrderTracking: React.FC = () => {
         <div className="text-center">
           <p className="text-gray-900 dark:text-white text-xl mb-4">Order not found</p>
           <button
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/dashboard')}
             className="px-6 py-2 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 transition-colors"
           >
             Back to Home
@@ -167,7 +169,7 @@ export const OrderTracking: React.FC = () => {
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           whileHover={{ x: -5 }}
-          onClick={() => navigate('/')}
+          onClick={() => navigate('/dashboard')}
           className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white mb-6 transition-colors"
         >
           <ArrowLeft className="w-5 h-5" />
@@ -218,9 +220,33 @@ export const OrderTracking: React.FC = () => {
         </motion.div>
 
         {/* Status Badge */}
-        <div className="flex justify-center mb-8">
+        <div className="flex justify-center mb-4">
           <StatusBadge status={order.status} />
         </div>
+
+        {/* Payment Banner */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className={`mb-8 max-w-md mx-auto p-4 rounded-xl border flex items-center justify-between text-sm shadow-sm ${
+            order.paymentMode === 'upi'
+              ? 'bg-green-50/50 dark:bg-green-950/20 border-green-200 dark:border-green-800 text-green-800 dark:text-green-300'
+              : 'bg-amber-50/50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300'
+          }`}
+        >
+          <span className="font-semibold">
+            {order.paymentMode === 'upi'
+              ? 'Paid Online (UPI QR Scanner)'
+              : 'Pay at Counter (Cash/Card)'}
+          </span>
+          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+            order.paymentStatus === 'paid'
+              ? 'bg-green-200/60 dark:bg-green-800/40 text-green-700 dark:text-green-300'
+              : 'bg-amber-200/60 dark:bg-amber-800/40 text-amber-700 dark:text-amber-300'
+          }`}>
+            {order.paymentStatus === 'paid' ? 'Paid' : 'Pending'}
+          </span>
+        </motion.div>
 
         {/* Progress Bar */}
         <motion.div

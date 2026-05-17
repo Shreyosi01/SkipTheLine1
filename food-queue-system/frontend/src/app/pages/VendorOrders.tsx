@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { api } from '../../api/client';
 
 export const VendorOrders: React.FC = () => {
-  const { orders, updateOrderStatus, user, fetchVendorOrders, getVendorStall } = useApp();
+  const { orders, updateOrderStatus, updatePaymentStatus, user, fetchVendorOrders, getVendorStall } = useApp();
   const navigate = useNavigate();
   const [filter, setFilter] = useState<'all' | 'placed' | 'preparing' | 'ready'>('all');
 
@@ -19,7 +19,9 @@ export const VendorOrders: React.FC = () => {
   const vendorStall = getVendorStall();
   const stallId = vendorStall?.id ?? user?.stallId;
   const vendorOrders = orders.filter((o) => o.stallId === stallId);
-  const filteredOrders = filter === 'all' ? vendorOrders : vendorOrders.filter((o) => o.status === filter);
+  // Only show active orders that need vendor action
+  const activeVendorOrders = vendorOrders.filter((o) => o.status === 'placed' || o.status === 'preparing' || o.status === 'ready');
+  const filteredOrders = filter === 'all' ? activeVendorOrders : activeVendorOrders.filter((o) => o.status === filter);
 
   const handleStatusChange = async (orderId: string, newStatus: 'placed' | 'preparing' | 'ready' | 'completed') => {
     try {
@@ -32,6 +34,16 @@ export const VendorOrders: React.FC = () => {
       toast.success(`Order status updated to ${newStatus}`);
     } catch (err) {
       toast.error('Failed to update order status');
+    }
+  };
+
+  const handleConfirmPayment = async (orderId: string) => {
+    try {
+      await api.updatePaymentStatus(parseInt(orderId));
+      updatePaymentStatus(orderId, 'paid');
+      toast.success('Counter payment confirmed successfully!');
+    } catch (err) {
+      toast.error('Failed to confirm counter payment');
     }
   };
 
@@ -89,8 +101,8 @@ export const VendorOrders: React.FC = () => {
         {filteredOrders.length === 0 ? (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-20">
             <Package className="w-20 h-20 mx-auto mb-4 text-gray-400 dark:text-gray-600" />
-            <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">No orders found</h2>
-            <p className="text-gray-600 dark:text-gray-400">Orders will appear here when customers place them</p>
+            <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">No active orders</h2>
+            <p className="text-gray-600 dark:text-gray-400">Active orders will appear here for you to mark as Preparing → Ready → Completed</p>
           </motion.div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -102,7 +114,11 @@ export const VendorOrders: React.FC = () => {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.1 }}
-                  className="bg-gray-50 dark:bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-200 dark:border-purple-500/20 transition-colors duration-200"
+                  className={`backdrop-blur-sm rounded-xl p-6 border transition-colors duration-200 ${
+                    order.status === 'cancelled'
+                      ? 'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-700/40'
+                      : 'bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-purple-500/20'
+                  }`}
                 >
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-3">
@@ -128,18 +144,38 @@ export const VendorOrders: React.FC = () => {
                     ))}
                   </div>
 
-                  <div className="mb-4">
+                  <div className="mb-4 flex flex-wrap gap-2">
                     <span className={`inline-flex px-3 py-1 rounded-full text-xs font-semibold transition-colors duration-200 ${
-                      order.status === 'placed' ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400 border border-blue-300 dark:border-blue-500/50'
+                      order.status === 'cancelled' ? 'bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-400 border border-red-300 dark:border-red-500/50'
+                      : order.status === 'placed' ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400 border border-blue-300 dark:border-blue-500/50'
                       : order.status === 'preparing' ? 'bg-yellow-100 dark:bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 border border-yellow-300 dark:border-yellow-500/50'
                       : order.status === 'ready' ? 'bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 border border-green-300 dark:border-green-500/50'
                       : 'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-400 border border-purple-300 dark:border-purple-500/50'
                     }`}>
                       {order.status.toUpperCase()}
                     </span>
+
+                    <span className={`inline-flex px-3 py-1 rounded-full text-xs font-semibold border transition-colors duration-200 ${
+                      order.paymentStatus === 'paid'
+                        ? 'bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 border-green-300 dark:border-green-500/50'
+                        : 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-500/50'
+                    }`}>
+                      {order.paymentMode?.toUpperCase()}: {order.paymentStatus?.toUpperCase()}
+                    </span>
                   </div>
 
-                  {order.status !== 'completed' && nextStatus && (
+                  {order.paymentMode === 'counter' && order.paymentStatus === 'pending' && (
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => handleConfirmPayment(order.id)}
+                      className="w-full mb-3 flex items-center justify-center gap-2 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-semibold rounded-lg shadow hover:shadow-orange-500/40 transition-all text-sm"
+                    >
+                      Confirm Cash Payment
+                    </motion.button>
+                  )}
+
+                  {order.status !== 'cancelled' && order.status !== 'completed' && nextStatus && (
                     <motion.button
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
@@ -151,6 +187,12 @@ export const VendorOrders: React.FC = () => {
                       {nextStatus === 'completed' && <CheckCircle className="w-4 h-4" />}
                       Mark as {nextStatus.charAt(0).toUpperCase() + nextStatus.slice(1)}
                     </motion.button>
+                  )}
+
+                  {order.status === 'cancelled' && (
+                    <div className="w-full flex items-center justify-center gap-2 py-2.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 font-semibold rounded-lg border border-red-200 dark:border-red-700/40 text-sm">
+                      ✕ Customer Cancelled This Order
+                    </div>
                   )}
 
                   <motion.div

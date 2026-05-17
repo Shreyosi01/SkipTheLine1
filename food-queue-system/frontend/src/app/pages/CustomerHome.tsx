@@ -232,12 +232,17 @@ export const StallDetail: React.FC = () => {
   );
 };
 
-// ─── Customer Home  (route: "/") ─────────────────────────────────────────────
+// ─── Customer Home  (route: "/dashboard") ─────────────────────────────────────
 export const CustomerHome: React.FC = () => {
   const { stalls, orders } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
+  const [showHistory, setShowHistory] = useState(false);
 
-  const recentOrders = orders.slice(-3).reverse();
+  const activeOrders = useMemo(() => {
+    return orders.filter(
+      (o) => o.status === 'placed' || o.status === 'preparing' || o.status === 'ready'
+    );
+  }, [orders]);
 
   const filteredStalls = useMemo(() => {
     const s = searchTerm.trim().toLowerCase();
@@ -311,55 +316,174 @@ export const CustomerHome: React.FC = () => {
           </div>
         </motion.div>
 
-        {recentOrders.length > 0 && (
+        {/* Active Orders & History Section */}
+        {orders.length > 0 && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.45 }}
             className="mb-10"
           >
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Recent Orders</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {recentOrders.map((order, index) => (
-                <Link key={order.id} to={`/order/${order.id}`}>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+              <div>
+                <h2 className="text-3xl font-extrabold text-gray-900 dark:text-white tracking-tight flex items-center gap-2">
+                  <Package className="w-8 h-8 text-blue-500" />
+                  {showHistory ? 'Full Order History' : 'Active Orders'}
+                </h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  {showHistory 
+                    ? `Showing all past, active, and cancelled orders (${orders.length})` 
+                    : `Tracking your currently active food preparations (${activeOrders.length})`}
+                </p>
+              </div>
+              <motion.button
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={() => setShowHistory(!showHistory)}
+                className={`flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm shadow-md transition-all ${
+                  showHistory
+                    ? 'bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-800 dark:text-gray-200 border border-gray-300 dark:border-gray-700'
+                    : 'bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white'
+                }`}
+              >
+                <Clock className="w-4 h-4" />
+                {showHistory ? 'Back to Active Orders' : 'View Order History'}
+              </motion.button>
+            </div>
+
+            {/* If not showing full history, display active orders */}
+            {!showHistory ? (
+              activeOrders.length === 0 ? (
+                <div className="bg-gray-50 dark:bg-gray-800/40 rounded-2xl p-8 text-center border border-gray-100 dark:border-gray-800">
+                  <Package className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
+                  <p className="text-gray-500 dark:text-gray-400 font-medium">No active orders right now.</p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Order food from any stall below to see live updates!</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {activeOrders.map((order, index) => (
+                    <Link key={order.id} to={`/order/${order.id}`}>
+                      <motion.div
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: index * 0.1 }}
+                        whileHover={{ y: -4, scale: 1.02 }}
+                        className="bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-gray-800/50 dark:to-indigo-900/20 backdrop-blur-sm rounded-xl p-4 border border-blue-200 dark:border-indigo-500/30 cursor-pointer"
+                      >
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="w-12 h-12 rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 flex items-center justify-center text-white font-bold">
+                            {order.token}
+                          </div>
+                          <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                            order.status === 'placed' ? 'bg-blue-500/20 text-blue-600 dark:text-blue-400'
+                            : order.status === 'preparing' ? 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400'
+                            : order.status === 'ready' ? 'bg-green-500/20 text-green-600 dark:text-green-400'
+                            : 'bg-purple-500/20 text-purple-600 dark:text-purple-400'
+                          }`}>
+                            {order.status}
+                          </span>
+                        </div>
+                        <p className="text-gray-900 dark:text-white font-semibold mb-1">{order.stallName}</p>
+                        <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400 mb-2">
+                          <div className="flex items-center gap-1">
+                            <Package className="w-4 h-4" />
+                            <span>{order.items.length} items</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Clock className="w-4 h-4" />
+                            <span>{order.estimatedTime}m</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-200/50 dark:border-gray-700/50">
+                          <div className="text-lg font-black bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
+                            ₹{order.total.toFixed(2)}
+                          </div>
+                          <span className="text-xs font-bold px-2 py-0.5 bg-gray-100 dark:bg-gray-800 rounded-md text-gray-500">
+                            {order.paymentMode === 'upi' ? 'UPI' : 'Counter'}
+                          </span>
+                        </div>
+                      </motion.div>
+                    </Link>
+                  ))}
+                </div>
+              )
+            ) : (
+              /* Detailed History List */
+              <div className="space-y-4">
+                {orders.map((order, index) => (
                   <motion.div
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                    whileHover={{ y: -4, scale: 1.02 }}
-                    className="bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-gray-800/50 dark:to-indigo-900/20 backdrop-blur-sm rounded-xl p-4 border border-blue-200 dark:border-indigo-500/30 cursor-pointer"
+                    key={order.id}
+                    initial={{ opacity: 0, y: 15 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                    className="bg-white dark:bg-gray-800/40 backdrop-blur-sm rounded-2xl p-5 border border-gray-200 dark:border-gray-700 flex flex-col md:flex-row md:items-center justify-between gap-6"
                   >
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="w-12 h-12 rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 flex items-center justify-center text-white font-bold">
+                    <div className="flex items-start gap-4 min-w-0 flex-1">
+                      <div className="w-14 h-14 rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 flex items-center justify-center text-white font-black text-lg flex-shrink-0">
                         {order.token}
                       </div>
-                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                        order.status === 'placed' ? 'bg-blue-500/20 text-blue-600 dark:text-blue-400'
-                        : order.status === 'preparing' ? 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400'
-                        : order.status === 'ready' ? 'bg-green-500/20 text-green-600 dark:text-green-400'
-                        : 'bg-purple-500/20 text-purple-600 dark:text-purple-400'
-                      }`}>
-                        {order.status}
-                      </span>
-                    </div>
-                    <p className="text-gray-900 dark:text-white font-semibold mb-1">{order.stallName}</p>
-                    <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
-                      <div className="flex items-center gap-1">
-                        <Package className="w-4 h-4" />
-                        <span>{order.items.length} items</span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                          <h4 className="text-lg font-bold text-gray-900 dark:text-white truncate">
+                            {order.stallName}
+                          </h4>
+                          <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                            order.status === 'placed' ? 'bg-blue-500/20 text-blue-600 dark:text-blue-400'
+                            : order.status === 'preparing' ? 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400'
+                            : order.status === 'ready' ? 'bg-green-500/20 text-green-600 dark:text-green-400'
+                            : order.status === 'completed' ? 'bg-purple-500/20 text-purple-600 dark:text-purple-400'
+                            : 'bg-red-500/20 text-red-600 dark:text-red-400'
+                          }`}>
+                            {order.status.toUpperCase()}
+                          </span>
+                          <span className={`px-2 py-0.5 rounded-full text-xxs font-bold tracking-wider ${
+                            order.paymentStatus === 'paid' ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400' : 'bg-amber-500/20 text-amber-600'
+                          }`}>
+                            {order.paymentStatus?.toUpperCase()}
+                          </span>
+                        </div>
+                        
+                        {/* Order Items Description */}
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mb-2 truncate max-w-xl">
+                          {order.items.map(item => `${item.name} (x${item.quantity})`).join(', ')}
+                        </p>
+                        
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-400 dark:text-gray-500">
+                          <span>Ordered on: {new Date(order.timestamp).toLocaleString()}</span>
+                          <span className="hidden sm:inline">•</span>
+                          <span>Payment: {order.paymentMode === 'upi' ? 'UPI Scan & Pay' : 'Pay at Counter'}</span>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <Clock className="w-4 h-4" />
-                        <span>{order.estimatedTime}m</span>
-                      </div>
                     </div>
-                    <div className="mt-2 text-xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
-                      ₹{order.total.toFixed(2)}
+
+                    <div className="flex items-center justify-between md:justify-end gap-6 pt-4 md:pt-0 border-t md:border-t-0 border-gray-100 dark:border-gray-700/60">
+                      <div className="text-right">
+                        <p className="text-xs text-gray-400 dark:text-gray-500">Total Price</p>
+                        <p className="text-2xl font-black bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
+                          ₹{order.total.toFixed(2)}
+                        </p>
+                      </div>
+                      
+                      {order.status !== 'cancelled' && order.status !== 'completed' ? (
+                        <Link to={`/order/${order.id}`}>
+                          <motion.button
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-xl text-sm shadow transition-colors flex items-center gap-1.5"
+                          >
+                            Track Live
+                          </motion.button>
+                        </Link>
+                      ) : (
+                        <span className="text-xs font-semibold text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-800/80 px-3 py-1.5 rounded-lg border border-gray-200/50 dark:border-gray-700/30">
+                          {order.status === 'completed' ? 'Order Fulfilled' : 'Cancelled'}
+                        </span>
+                      )}
                     </div>
                   </motion.div>
-                </Link>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </motion.div>
         )}
 

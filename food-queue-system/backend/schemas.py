@@ -21,6 +21,7 @@ class UserResponse(BaseModel):
     phone: Optional[str] = None
     role: str
     avatar: Optional[str] = None
+    stall_id: Optional[int] = None
 
     class Config:
         from_attributes = True
@@ -41,6 +42,8 @@ class StallCreate(BaseModel):
     name: str
     category: str
     avatar: Optional[str] = None
+    upi_id: Optional[str] = None
+    qr_code_url: Optional[str] = None
 
 class StallResponse(BaseModel):
     id: int
@@ -50,7 +53,10 @@ class StallResponse(BaseModel):
     image_url: Optional[str]
     rating: float
     is_open: bool = True          # ✅ NEW: whether the stall is currently accepting orders
-    owner_id: int
+    upi_id: Optional[str] = None
+    qr_code_url: Optional[str] = None
+    owner_id: Optional[int] = None
+    is_updated: bool = False
 
     class Config:
         from_attributes = True
@@ -94,6 +100,8 @@ class OrderItemIn(BaseModel):
 class OrderCreate(BaseModel):
     stall_id: int
     items: List[OrderItemIn]
+    payment_mode: Optional[str] = "counter"
+    payment_status: Optional[str] = "pending"
 
 ALLOWED_STATUSES = {"placed", "preparing", "ready", "completed"}
 
@@ -123,6 +131,8 @@ class OrderResponse(BaseModel):
     id: int
     token: str
     status: str
+    payment_mode: Optional[str] = "counter"
+    payment_status: Optional[str] = "pending"
     queue_number: int
     total_price: float
     stall_id: int
