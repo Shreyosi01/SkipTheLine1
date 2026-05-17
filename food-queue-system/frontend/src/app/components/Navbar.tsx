@@ -11,6 +11,12 @@ export const Navbar: React.FC = () => {
   // Sum quantities across all cart items (not just unique item count)
   const totalCartQuantity = cart.reduce((sum, item) => sum + item.quantity, 0);
 
+  const logoHref = user
+    ? user.mode === 'vendor'
+      ? '/vendor'
+      : '/dashboard'
+    : '/';
+
   return (
     <motion.nav
       initial={{ y: -100 }}
@@ -19,7 +25,7 @@ export const Navbar: React.FC = () => {
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          <Link to="/" className="flex items-center space-x-2">
+          <Link to={logoHref} className="flex items-center space-x-2">
             <motion.div
               whileHover={{ rotate: 360 }}
               transition={{ duration: 0.5 }}

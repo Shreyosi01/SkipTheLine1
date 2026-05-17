@@ -13,13 +13,13 @@ export const Layout: React.FC = () => {
   // have a valid token being verified by restoreSession() right now.
   useEffect(() => {
     if (!isInitializing && !user) {
-      navigate('/welcome');
+      navigate('/');
     }
   }, [user, isInitializing, navigate]);
 
   useEffect(() => {
     // Redirect based on user mode
-    if (user && location.pathname === '/') {
+    if (user && location.pathname === '/dashboard') {
       if (userMode === 'vendor') {
         navigate('/vendor');
       }

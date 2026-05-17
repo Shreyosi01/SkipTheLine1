@@ -1,4 +1,7 @@
-const BASE_URL = "https://skiptheline-g8dy.onrender.com";
+const BASE_URL =
+  window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+    ? "http://localhost:8000"
+    : "https://skiptheline-g8dy.onrender.com";
 
 const getToken = () => localStorage.getItem("token");
 
@@ -66,14 +69,14 @@ export const api = {
       headers: authHeaders(),
     }).then(handleResponse),
 
-  createStall: (data: { name: string; category: string; avatar?: string }) =>
+  createStall: (data: { name: string; category: string; avatar?: string; upi_id?: string; qr_code_url?: string }) =>
     fetch(`${BASE_URL}/stalls`, {
       method: "POST",
       headers: authHeaders(),
       body: JSON.stringify(data),
     }).then(handleResponse),
 
-  updateStall: (stallId: number, data: { name: string; category: string; avatar?: string }) =>
+  updateStall: (stallId: number, data: { name: string; category: string; avatar?: string; upi_id?: string; qr_code_url?: string }) =>
     fetch(`${BASE_URL}/stalls/${stallId}`, {
       method: "PUT",
       headers: authHeaders(),
@@ -125,7 +128,7 @@ export const api = {
     }).then(handleResponse),
 
   // ── Orders ──────────────────────────────────────
-  placeOrder: (data: { stall_id: number; items: { menu_item_id: number; quantity: number }[] }) =>
+  placeOrder: (data: { stall_id: number; items: { menu_item_id: number; quantity: number }[]; payment_mode?: string; payment_status?: string }) =>
     fetch(`${BASE_URL}/orders`, {
       method: "POST",
       headers: authHeaders(),
@@ -155,6 +158,12 @@ export const api = {
       method: "PATCH",
       headers: authHeaders(),
       body: JSON.stringify({ status }),
+    }).then(handleResponse),
+
+  updatePaymentStatus: (orderId: number) =>
+    fetch(`${BASE_URL}/orders/${orderId}/payment`, {
+      method: "PATCH",
+      headers: authHeaders(),
     }).then(handleResponse),
 
   // ✅ NEW: Customer cancels their own order.

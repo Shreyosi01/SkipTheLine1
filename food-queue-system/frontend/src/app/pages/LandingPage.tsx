@@ -1,6 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { motion, useScroll, useTransform, useInView, AnimatePresence } from 'motion/react';
 import { useNavigate } from 'react-router';
+import { useApp } from '../context/AppContext';
 import {
   ArrowRight, Zap, Clock, ShoppingBag,
   BarChart3, Store, Users, CheckCircle2,
@@ -369,6 +370,7 @@ const Step: React.FC<{ number: string; title: string; desc: string; delay?: numb
 
 export const LandingPage: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useApp();
   const heroRef = useRef(null);
   const { scrollYProgress } = useScroll({ target: heroRef, offset: ['start start', 'end start'] });
   const heroY = useTransform(scrollYProgress, [0, 1], ['0%', '22%']);
@@ -379,7 +381,6 @@ export const LandingPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-950 text-white overflow-x-hidden selection:bg-blue-500/25">
 
-      {/* ── Navbar: logo only ─────────────────────────────────────────────── */}
       <motion.nav
         initial={{ opacity: 0, y: -14 }}
         animate={{ opacity: 1, y: 0 }}

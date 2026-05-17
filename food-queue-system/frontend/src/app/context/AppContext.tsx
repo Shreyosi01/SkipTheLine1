@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { api } from '../../api/client';
 
 export type UserMode = 'customer' | 'vendor';
-export type OrderStatus = 'placed' | 'preparing' | 'ready' | 'completed';
+export type OrderStatus = 'placed' | 'preparing' | 'ready' | 'completed' | 'cancelled';
 
 export interface User {
   id: string;
@@ -47,6 +47,8 @@ export interface Stall {
   image?: string;
   category?: string;
   isOpen?: boolean; // ✅ NEW: whether the stall is currently accepting orders
+  upiId?: string;
+  qrCodeUrl?: string;
 }
 
 export interface Order {
@@ -57,6 +59,8 @@ export interface Order {
   total: number;
   token: string;
   status: OrderStatus;
+  paymentMode?: 'upi' | 'counter';
+  paymentStatus?: 'paid' | 'pending';
   estimatedTime: number;
   timestamp: Date;
 }
@@ -69,8 +73,8 @@ interface AppContextType {
   isLoading: boolean;
   isInitializing: boolean;
   stalls: Stall[];
-  createStall: (name: string, items: StallItem[], category?: string, avatar?: string) => Promise<void>;
-  updateStall: (id: string, name: string, items: StallItem[], category?: string, avatar?: string) => Promise<void>;
+  createStall: (name: string, items: StallItem[], category?: string, avatar?: string, upiId?: string, qrCodeUrl?: string) => Promise<void>;
+  updateStall: (id: string, name: string, items: StallItem[], category?: string, avatar?: string, upiId?: string, qrCodeUrl?: string) => Promise<void>;
   getVendorStall: () => Stall | undefined;
   setUser: (user: User | null) => void;
   setUserMode: (mode: UserMode) => void;
@@ -80,6 +84,7 @@ interface AppContextType {
   clearCart: () => void;
   addOrder: (order: Order) => void;
   updateOrderStatus: (id: string, status: OrderStatus) => void;
+  updatePaymentStatus: (id: string, status: 'paid' | 'pending') => void;
   loginUser: (email: string, password: string) => Promise<User>;
   registerUser: (
     name: string,
@@ -126,6 +131,8 @@ const mapStall = (s: any, menuItems?: any[]): Stall => ({
   stallName: s.name,
   category: s.category,
   isOpen: s.is_open ?? true, // ✅ default true so existing stalls appear open
+  upiId: s.upi_id || undefined,
+  qrCodeUrl: s.qr_code_url || undefined,
   items: (menuItems || []).map((i: any) => ({
     id: String(i.id),
     name: i.name,
@@ -134,7 +141,7 @@ const mapStall = (s: any, menuItems?: any[]): Stall => ({
     isAvailable: i.is_available ?? true, // ✅ default true for safety
   })),
   updatedAt: s.updated_at || new Date().toISOString(),
-  status: 'new' as const,
+  status: s.is_updated ? ('updated' as const) : ('new' as const),
   image: s.avatar || s.image_url || undefined,
 });
 
@@ -283,6 +290,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       total: o.total_price,
       token: o.token,
       status: o.status as OrderStatus,
+      paymentMode: o.payment_mode || 'counter',
+      paymentStatus: o.payment_status || 'pending',
       estimatedTime: 15,
       timestamp: new Date(o.created_at),
     }));
@@ -394,6 +403,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setOrders(prev => prev.map(o => o.id === id ? { ...o, status } : o));
   };
 
+  const updatePaymentStatus = (id: string, status: 'paid' | 'pending') => {
+    setOrders(prev => prev.map(o => o.id === id ? { ...o, paymentStatus: status } : o));
+  };
+
   const addToCart = (item: CartItem) => {
     setCart(prev => {
       const existing = prev.find(i => i.id === item.id);
@@ -413,14 +426,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCart(prev => prev.map(i => i.id === id ? { ...i, quantity } : i));
   const clearCart = () => setCart([]);
 
-  // ✅ UPDATED: passes item.isAvailable (defaulting to true) instead of hardcoding true
-  const createStall = async (name: string, items: StallItem[], category = 'snacks', avatar?: string) => {
+  const createStall = async (name: string, items: StallItem[], category = 'snacks', avatar?: string, upiId?: string, qrCodeUrl?: string) => {
     if (!user) return;
     try {
       const vendorAvatars  = getStoredVendorAvatars();
       const resolvedAvatar = avatar || vendorAvatars[user.id] || user.avatar;
 
-      const res    = await api.createStall({ name, category, avatar: resolvedAvatar });
+      const res    = await api.createStall({ name, category, avatar: resolvedAvatar, upi_id: upiId, qr_code_url: qrCodeUrl });
       const stallId = res.id;
 
       await Promise.all(
@@ -445,14 +457,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  // ✅ UPDATED: passes item.isAvailable (defaulting to true) instead of hardcoding true
-  const updateStall = async (id: string, name: string, items: StallItem[], category = 'snacks', avatar?: string) => {
+  const updateStall = async (id: string, name: string, items: StallItem[], category = 'snacks', avatar?: string, upiId?: string, qrCodeUrl?: string) => {
     if (!user) return;
     try {
       const vendorAvatars  = getStoredVendorAvatars();
       const resolvedAvatar = avatar || vendorAvatars[user.id] || user.avatar;
 
-      await api.updateStall(parseInt(id), { name, category, avatar: resolvedAvatar });
+      await api.updateStall(parseInt(id), { name, category, avatar: resolvedAvatar, upi_id: upiId, qr_code_url: qrCodeUrl });
 
       if (resolvedAvatar) persistVendorAvatar(user.id, resolvedAvatar);
 
@@ -503,7 +514,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     <AppContext.Provider value={{
       user, userMode, cart, orders, isLoading, isInitializing, stalls,
       setUser, setUserMode, addToCart, removeFromCart, updateCartItemQuantity, clearCart,
-      addOrder, updateOrderStatus, loginUser, registerUser,
+      addOrder, updateOrderStatus, updatePaymentStatus, loginUser, registerUser,
       logoutUser, deleteUser, updateProfile,
       fetchMyOrders, fetchVendorOrders, fetchStalls,
       createStall, updateStall, getVendorStall,

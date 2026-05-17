@@ -16,6 +16,7 @@ export const VendorDashboard: React.FC = () => {
   // ✅ Local state for open/closed — initialised from stall data once loaded
   const [isOpen, setIsOpen] = useState<boolean>(true);
   const [togglingOpen, setTogglingOpen] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
 
   // Refresh vendor orders every time the dashboard is visited
   useEffect(() => {
@@ -34,7 +35,7 @@ export const VendorDashboard: React.FC = () => {
   }, [vendorStall?.id]);
 
   const totalOrders = vendorOrders.length;
-  const activeQueue = vendorOrders.filter((o) => o.status !== 'completed').length;
+  const activeQueue = vendorOrders.filter((o) => o.status !== 'completed' && o.status !== 'cancelled').length;
   const totalRevenue = vendorOrders.reduce((sum, o) => sum + o.total, 0);
   const avgWaitTime = 12;
 
@@ -299,8 +300,8 @@ export const VendorDashboard: React.FC = () => {
             <div className="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-xl p-6 border border-purple-200 dark:border-purple-500/30">
               <div className="flex items-center gap-4 overflow-x-auto pb-2">
                 {vendorOrders
-                  .filter((o) => o.status !== 'completed')
-                  .map((order, index) => (
+                   .filter((o) => o.status !== 'completed' && o.status !== 'cancelled')
+                   .map((order, index) => (
                     <motion.div
                       key={order.id}
                       initial={{ scale: 0, opacity: 0 }}
@@ -335,51 +336,132 @@ export const VendorDashboard: React.FC = () => {
           )}
         </motion.div>
 
-        {/* Recent Orders */}
+        {/* Order History */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.6 }}
           className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-6 border border-gray-200 dark:border-purple-500/20"
         >
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Recent Orders</h2>
-          {vendorOrders.length === 0 ? (
-            <p className="text-gray-600 dark:text-gray-400 text-center py-8">No orders yet</p>
-          ) : (
-            <div className="space-y-4">
-              {vendorOrders.slice(0, 5).map((order, index) => (
-                <motion.div
-                  key={order.id}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: index * 0.1 }}
-                  className="flex items-center justify-between p-4 bg-white dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-700/50"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-full bg-gradient-to-r from-green-500 to-emerald-500 flex items-center justify-center text-white font-bold">
-                      {order.token}
-                    </div>
-                    <div>
-                      <p className="text-gray-900 dark:text-white font-semibold">{order.items.length} items</p>
-                      <p className="text-gray-600 dark:text-gray-400 text-sm">
-                        {new Date(order.timestamp).toLocaleTimeString()}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <p className="text-xl font-bold text-green-600 dark:text-green-400">₹{order.total.toFixed(2)}</p>
-                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                      order.status === 'placed'    ? 'bg-blue-500/20 text-blue-600 dark:text-blue-400'
-                      : order.status === 'preparing' ? 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400'
-                      : order.status === 'ready'     ? 'bg-green-500/20 text-green-600 dark:text-green-400'
-                      : 'bg-purple-500/20 text-purple-600 dark:text-purple-400'
-                    }`}>
-                      {order.status}
-                    </span>
-                  </div>
-                </motion.div>
-              ))}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <Package className="w-6 h-6 text-purple-500" />
+                {showHistory ? 'Full Order History' : 'Active Orders'}
+              </h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                {showHistory
+                  ? `All orders including completed & cancelled (${vendorOrders.length})`
+                  : `Currently active orders needing action (${vendorOrders.filter((o) => o.status !== 'completed' && o.status !== 'cancelled').length})`}
+              </p>
             </div>
+            <motion.button
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={() => setShowHistory(!showHistory)}
+              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm shadow-md transition-all ${
+                showHistory
+                  ? 'bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 border border-gray-300 dark:border-gray-600'
+                  : 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
+              }`}
+            >
+              <Clock className="w-4 h-4" />
+              {showHistory ? 'Back to Active' : 'View Full History'}
+            </motion.button>
+          </div>
+
+          {!showHistory ? (
+            /* Active orders — cards with action shortcut */
+            vendorOrders.filter((o) => o.status !== 'completed' && o.status !== 'cancelled').length === 0 ? (
+              <div className="text-center py-10">
+                <Users className="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-gray-600" />
+                <p className="text-gray-500 dark:text-gray-400 font-medium">No active orders right now.</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">New customer orders will appear here.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {vendorOrders.filter((o) => o.status !== 'completed' && o.status !== 'cancelled').map((order, index) => (
+                  <motion.div
+                    key={order.id}
+                    initial={{ opacity: 0, x: -16 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.07 }}
+                    className="flex items-center justify-between p-4 bg-white dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-700/50"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-11 h-11 rounded-full bg-gradient-to-r from-green-500 to-emerald-500 flex items-center justify-center text-white font-bold flex-shrink-0">
+                        {order.token}
+                      </div>
+                      <div>
+                        <p className="text-gray-900 dark:text-white font-semibold text-sm">{order.items.map(i => `${i.name} (x${i.quantity})`).join(', ').slice(0, 45)}{order.items.join('').length > 45 ? '…' : ''}</p>
+                        <p className="text-gray-500 dark:text-gray-400 text-xs">{new Date(order.timestamp).toLocaleTimeString()}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <p className="text-lg font-bold text-green-600 dark:text-green-400">₹{order.total.toFixed(2)}</p>
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${
+                        order.status === 'placed'    ? 'bg-blue-500/20 text-blue-600 dark:text-blue-400'
+                        : order.status === 'preparing' ? 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400'
+                        : 'bg-green-500/20 text-green-600 dark:text-green-400'
+                      }`}>
+                        {order.status.toUpperCase()}
+                      </span>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            )
+          ) : (
+            /* Full history — rich rows */
+            vendorOrders.length === 0 ? (
+              <p className="text-gray-500 dark:text-gray-400 text-center py-10">No orders yet.</p>
+            ) : (
+              <div className="space-y-3">
+                {vendorOrders.map((order, index) => (
+                  <motion.div
+                    key={order.id}
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.04 }}
+                    className={`p-4 rounded-xl border flex flex-col md:flex-row md:items-center justify-between gap-4 ${
+                      order.status === 'cancelled'
+                        ? 'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-700/40'
+                        : 'bg-white dark:bg-gray-900/50 border-gray-200 dark:border-gray-700/50'
+                    }`}
+                  >
+                    <div className="flex items-start gap-3 flex-1 min-w-0">
+                      <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0 ${
+                        order.status === 'cancelled' ? 'bg-red-400' : 'bg-gradient-to-r from-green-500 to-emerald-500'
+                      }`}>
+                        {order.token}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2 mb-1">
+                          <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                            order.status === 'cancelled'  ? 'bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-400'
+                            : order.status === 'placed'    ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400'
+                            : order.status === 'preparing' ? 'bg-yellow-100 dark:bg-yellow-500/20 text-yellow-700 dark:text-yellow-400'
+                            : order.status === 'ready'     ? 'bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400'
+                            : 'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-400'
+                          }`}>{order.status.toUpperCase()}</span>
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                            order.paymentStatus === 'paid' ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400' : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
+                          }`}>{order.paymentMode === 'upi' ? 'UPI' : 'Counter'} · {order.paymentStatus?.toUpperCase()}</span>
+                        </div>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 truncate max-w-md">
+                          {order.items.map(i => `${i.name} (x${i.quantity})`).join(', ')}
+                        </p>
+                        <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{new Date(order.timestamp).toLocaleString()}</p>
+                      </div>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <p className="text-xs text-gray-400 dark:text-gray-500">Total</p>
+                      <p className="text-xl font-black bg-gradient-to-r from-green-400 to-emerald-400 bg-clip-text text-transparent">₹{order.total.toFixed(2)}</p>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            )
           )}
         </motion.div>
 

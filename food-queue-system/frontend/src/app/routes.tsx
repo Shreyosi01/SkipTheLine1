@@ -13,6 +13,7 @@ import { VendorAnalytics } from './pages/VendorAnalytics';
 import { Profile } from './pages/Profile';
 import { Layout } from './components/Layout';
 import { CreateStall } from './pages/CreateStall';
+import { Payment } from './pages/Payment';
 
 export const router = createBrowserRouter([
   {
@@ -20,17 +21,21 @@ export const router = createBrowserRouter([
     Component: Auth,
   },
   {
-    path: '/welcome',
+    path: '/',
     Component: LandingPage,
   },
   {
-    path: '/',
+    path: '/welcome',
+    element: <Navigate to="/" replace />,
+  },
+  {
     Component: Layout,
     children: [
       // Customer Routes
-      { index: true, Component: CustomerHome },
+      { path: 'dashboard', Component: CustomerHome },
       { path: 'stall/:id', Component: StallDetail },
       { path: 'cart', Component: Cart },
+      { path: 'payment', Component: Payment },
       // ✅ confirmation MUST be above order/:id so it isn't caught as id="confirmation"
       { path: 'order/confirmation', Component: OrderConfirmation },
       { path: 'order/:id', Component: OrderTracking },

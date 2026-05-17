@@ -12,7 +12,10 @@ class Stall(Base):
     image_url  = Column(String, nullable=True)
     rating     = Column(Float, default=4.0)
     is_open    = Column(Boolean, default=True)   # ✅ NEW: vendor can open/close their stall
+    upi_id     = Column(String, nullable=True)   # ✅ NEW: Stall UPI ID
+    qr_code_url = Column(String, nullable=True)  # ✅ NEW: Stall QR Code Scanner URL/Base64
     owner_id   = Column(Integer, ForeignKey("users.id"))  # vendor who owns this stall
+    is_updated = Column(Boolean, default=False)
     owner      = relationship("User", back_populates="stalls")
     menu_items = relationship("MenuItem", back_populates="stall")
     orders     = relationship("Order", back_populates="stall")
@@ -45,6 +48,8 @@ class Order(Base):
     customer_id  = Column(Integer, ForeignKey("users.id"))
     stall_id     = Column(Integer, ForeignKey("stalls.id"))
     status       = Column(String, default="placed")
+    payment_mode = Column(String, default="counter")    # ✅ NEW: "counter" or "upi"
+    payment_status = Column(String, default="pending")  # ✅ NEW: "pending" or "paid"
     queue_number = Column(Integer)
     total_price  = Column(Float)
     created_at   = Column(DateTime, default=datetime.utcnow)

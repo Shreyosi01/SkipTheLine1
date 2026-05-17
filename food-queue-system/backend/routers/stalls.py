@@ -22,6 +22,8 @@ def create_stall(data: schemas.StallCreate, db: Session = Depends(get_db),
         name=data.name,
         category=data.category,
         avatar=data.avatar,
+        upi_id=data.upi_id,
+        qr_code_url=data.qr_code_url,
         owner_id=current_user.id
     )
     db.add(stall)
@@ -76,6 +78,9 @@ def update_stall(stall_id: int, data: schemas.StallCreate,
     stall.name = data.name
     stall.category = data.category
     stall.avatar = data.avatar
+    stall.upi_id = data.upi_id
+    stall.qr_code_url = data.qr_code_url
+    stall.is_updated = True
     db.commit()
     db.refresh(stall)
     return stall

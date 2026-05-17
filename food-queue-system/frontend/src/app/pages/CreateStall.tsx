@@ -91,6 +91,8 @@ export const CreateStall: React.FC = () => {
   const isEditing = !!existingStall;
 
   const [stallName, setStallName]           = useState(existingStall?.stallName ?? '');
+  const [upiId, setUpiId]                   = useState(existingStall?.upiId ?? '');
+  const [qrCodeUrl, setQrCodeUrl]           = useState(existingStall?.qrCodeUrl ?? '');
   const [items, setItems]                   = useState<StallItem[]>(
     existingStall?.items.length ? existingStall.items : [emptyItem()]
   );
@@ -106,6 +108,8 @@ export const CreateStall: React.FC = () => {
   useEffect(() => {
     if (existingStall) {
       setStallName(existingStall.stallName);
+      setUpiId(existingStall.upiId ?? '');
+      setQrCodeUrl(existingStall.qrCodeUrl ?? '');
       setItems(existingStall.items.length ? existingStall.items : [emptyItem()]);
       setSelectedAvatar(existingStall.image || user?.avatar || '');
       setCategory(existingStall.category || 'snacks');
@@ -160,10 +164,10 @@ export const CreateStall: React.FC = () => {
     }
     try {
       if (isEditing && existingStall) {
-        await updateStall(existingStall.id, stallName.trim(), validItems, category, selectedAvatar);
+        await updateStall(existingStall.id, stallName.trim(), validItems, category, selectedAvatar, upiId.trim(), qrCodeUrl.trim());
         toast.success('Stall updated successfully!');
       } else {
-        await createStall(stallName.trim(), validItems, category, selectedAvatar);
+        await createStall(stallName.trim(), validItems, category, selectedAvatar, upiId.trim(), qrCodeUrl.trim());
         toast.success('Stall created successfully!');
       }
       setSubmitted(true);
@@ -399,6 +403,104 @@ export const CreateStall: React.FC = () => {
                   )}
                 </motion.button>
               ))}
+            </div>
+          </motion.div>
+
+          {/* UPI & QR Scanner Settings */}
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.18 }}
+            className="bg-white dark:bg-gray-800/60 rounded-2xl p-6 border border-gray-200 dark:border-gray-700/50 shadow-sm space-y-6"
+          >
+            <div>
+              <h2 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2 mb-1">
+                <IndianRupee className="w-5 h-5 text-green-500" />
+                UPI & Payment Scanner Settings
+              </h2>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Provide your merchant UPI ID and QR Scanner so customers can scan and pay you directly.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
+                    UPI ID / VPA <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={upiId}
+                    onChange={(e) => setUpiId(e.target.value)}
+                    placeholder="e.g. merchant@okaxis"
+                    className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20 transition-all font-medium"
+                    required
+                  />
+                  <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-1">
+                    Customers will transfer order totals directly to this UPI address.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
+                    UPI QR Scanner Image URL
+                    <span className="text-gray-400 dark:text-gray-500 font-normal text-xs">(optional)</span>
+                  </label>
+                  <input
+                    type="url"
+                    value={qrCodeUrl}
+                    onChange={(e) => setQrCodeUrl(e.target.value)}
+                    placeholder="e.g. https://example.com/my-qr.png"
+                    className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20 transition-all text-sm"
+                  />
+                  <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-1">
+                    Provide a hosted URL of your GPay/PhonePe business QR code. If left blank, we will automatically generate a dynamic live UPI QR Code for your customers!
+                  </p>
+                </div>
+              </div>
+
+              {/* QR Scanner Live Preview */}
+              <div className="flex flex-col items-center justify-center p-4 bg-gray-50 dark:bg-gray-900/35 rounded-2xl border border-gray-200 dark:border-gray-700/60 text-center">
+                <span className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3">
+                  Live Scanner Preview
+                </span>
+
+                {upiId.trim() ? (
+                  <div className="bg-white p-3 rounded-xl shadow-md border border-gray-100 flex flex-col items-center">
+                    <img
+                      src={
+                        qrCodeUrl.trim()
+                          ? qrCodeUrl.trim()
+                          : `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
+                              `upi://pay?pa=${upiId.trim()}&pn=${encodeURIComponent(
+                                stallName || 'Stall'
+                              )}&cu=INR`
+                            )}`
+                      }
+                      alt="UPI QR Scanner"
+                      className="w-36 h-36 object-contain rounded-lg"
+                      onError={(e) => {
+                        // fallback if custom URL fails to load
+                        e.currentTarget.src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=upi://pay?pa=${upiId.trim()}`;
+                      }}
+                    />
+                    <span className="text-[11px] font-semibold text-gray-800 mt-2 truncate max-w-[150px]">
+                      {upiId.trim()}
+                    </span>
+                    <span className="text-[9px] text-green-600 font-bold uppercase tracking-wider mt-0.5">
+                      {qrCodeUrl.trim() ? 'Custom Uploaded' : 'Dynamic Auto-QR'}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="text-gray-400 dark:text-gray-500 flex flex-col items-center py-6">
+                    <div className="w-16 h-16 rounded-full bg-gray-200 dark:bg-gray-800 flex items-center justify-center mb-3 text-gray-400 dark:text-gray-600">
+                      <Sparkles className="w-8 h-8" />
+                    </div>
+                    <p className="text-xs font-medium">Enter your UPI ID to generate scanner</p>
+                  </div>
+                )}
+              </div>
             </div>
           </motion.div>
 

@@ -14,7 +14,7 @@ def _get_queue_data(db: Session, stall_id: int) -> dict:
     """Shared by REST snapshot and SSE stream — single source of truth."""
     active_orders = db.query(models.Order).filter(
         models.Order.stall_id == stall_id,
-        models.Order.status != "completed"
+        models.Order.status.notin_(["completed", "cancelled"])
     ).order_by(models.Order.queue_number).all()
 
     return {
@@ -83,7 +83,7 @@ def get_queue_position(order_id: int, db: Session = Depends(get_db),
     ahead = db.query(models.Order).filter(
         models.Order.stall_id == order.stall_id,
         models.Order.queue_number < order.queue_number,
-        models.Order.status != "completed"
+        models.Order.status.notin_(["completed", "cancelled"])
     ).count()
 
     return {
