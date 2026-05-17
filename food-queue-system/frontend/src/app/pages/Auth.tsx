@@ -2,18 +2,19 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Mail, Lock, User, Sparkles, Sun, Moon, Phone, Eye, EyeOff } from 'lucide-react';
 import { useApp, UserMode } from '../context/AppContext';
-import { useNavigate } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 import { useTheme } from 'next-themes';
 import { toast } from 'sonner';
 
 export const Auth: React.FC = () => {
-  const [isLogin, setIsLogin] = useState(true);
+  const location = useLocation();
+  const [isLogin, setIsLogin] = useState(location.state?.isLogin ?? true);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [selectedMode, setSelectedMode] = useState<UserMode>('customer');
+  const [selectedMode, setSelectedMode] = useState<UserMode>(location.state?.mode ?? 'customer');
 
   const { loginUser, registerUser, isLoading } = useApp();
   const { theme, setTheme } = useTheme();
@@ -94,47 +95,8 @@ export const Auth: React.FC = () => {
         </motion.button>
       )}
 
-      {/* Left Sidebar */}
-      <motion.div
-        initial={{ x: -100, opacity: 0 }}
-        animate={{ x: 0, opacity: 1 }}
-        transition={{ duration: 0.6 }}
-        className={`hidden lg:flex lg:w-1/2 bg-gradient-to-br ${gradientClass} relative overflow-hidden`}
-      >
-        <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1763619814380-1637cdf5f796?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwZW9wbGUlMjB3YWl0aW5nJTIwcXVldWUlMjBsaW5lfGVufDF8fHx8MTc3NTMyNzk0NHww&ixlib=rb-4.1.0&q=80&w=1080')] bg-cover bg-center opacity-20" />
-        <div className="relative z-10 flex flex-col items-center justify-center w-full p-12 text-white">
-          <motion.div
-            animate={{ y: [0, -20, 0] }}
-            transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
-            className="mb-8"
-          >
-            <div className="w-32 h-32 bg-white/10 backdrop-blur-lg rounded-full flex items-center justify-center border-4 border-white/30">
-              <Sparkles className="w-16 h-16" />
-            </div>
-          </motion.div>
-          <motion.h1
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="text-5xl font-bold mb-4 text-center"
-          >
-            Skip the Line,
-            <br />
-            Savor the Time
-          </motion.h1>
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.5 }}
-            className="text-xl text-center text-white/80 max-w-md"
-          >
-            Order digitally, track in real-time, and never wait in a queue again.
-          </motion.p>
-        </div>
-      </motion.div>
-
-      {/* Right Form */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-white dark:bg-gray-900 transition-colors duration-200">
+      {/* Centered Form */}
+      <div className="w-full flex items-center justify-center p-8 bg-white dark:bg-gray-900 transition-colors duration-200">
         <motion.div
           initial={{ x: 100, opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
@@ -142,14 +104,17 @@ export const Auth: React.FC = () => {
           className="w-full max-w-md"
         >
           {/* Logo */}
-          <div className="flex items-center justify-center gap-3 mb-8">
+          <button 
+            onClick={() => navigate('/')}
+            className="w-full flex items-center justify-center gap-3 mb-8 hover:opacity-80 transition-opacity"
+          >
             <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-2xl bg-gradient-to-br ${btnGradientClass}`}>
               Q
             </div>
             <span className={`text-3xl font-bold bg-gradient-to-r bg-clip-text text-transparent ${selectedMode === 'customer' ? 'from-blue-400 to-cyan-400' : 'from-green-400 to-emerald-400'}`}>
               SkipTheLine
             </span>
-          </div>
+          </button>
 
           {/* Auth Tabs */}
           <div className="flex mb-8 bg-gray-100 dark:bg-gray-800/50 rounded-lg p-1">

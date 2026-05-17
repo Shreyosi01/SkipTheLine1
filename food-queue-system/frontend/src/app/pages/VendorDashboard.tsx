@@ -10,7 +10,7 @@ import { api } from '../../api/client';
 import { toast } from 'sonner';
 
 export const VendorDashboard: React.FC = () => {
-  const { orders, user, getVendorStall, fetchVendorOrders } = useApp();
+  const { orders, user, getVendorStall, fetchVendorOrders, fetchStalls } = useApp();
   const navigate = useNavigate();
 
   // ✅ Local state for open/closed — initialised from stall data once loaded
@@ -51,8 +51,9 @@ export const VendorDashboard: React.FC = () => {
     setTogglingOpen(true);
     const next = !isOpen;
     try {
-      await api.toggleAvailability(parseInt(vendorStall.id), next);
+      await api.toggleStallAvailability(parseInt(vendorStall.id), next);
       setIsOpen(next);
+      await fetchStalls();
       toast.success(next ? 'Stall is now Open — accepting orders!' : 'Stall is now Closed — orders paused.');
     } catch (err: any) {
       toast.error(err?.message || 'Failed to update stall availability');
