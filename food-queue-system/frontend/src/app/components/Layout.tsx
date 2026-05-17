@@ -13,7 +13,7 @@ export const Layout: React.FC = () => {
   // have a valid token being verified by restoreSession() right now.
   useEffect(() => {
     if (!isInitializing && !user) {
-      navigate('/auth');
+      navigate('/welcome');
     }
   }, [user, isInitializing, navigate]);
 

@@ -1,5 +1,6 @@
 import { createBrowserRouter, Navigate } from 'react-router';
 import { Auth } from './pages/Auth';
+import { LandingPage } from './pages/LandingPage';
 import { CustomerHome } from './pages/CustomerHome';
 import { StallDetail } from './pages/StallDetail';
 import { Cart } from './pages/Cart';
@@ -17,6 +18,10 @@ export const router = createBrowserRouter([
   {
     path: '/auth',
     Component: Auth,
+  },
+  {
+    path: '/welcome',
+    Component: LandingPage,
   },
   {
     path: '/',

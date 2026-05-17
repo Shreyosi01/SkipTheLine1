@@ -46,9 +46,11 @@ export const Profile: React.FC = () => {
   const displayPhone = user.phone ? user.phone.replace(/\D/g, '').slice(-10) : '';
 
   const handleLogout = () => {
-    logoutUser();
-    toast.success('Logged out successfully');
-    navigate('/auth');
+    navigate('/auth', { replace: true });
+    setTimeout(() => {
+      logoutUser();
+      toast.success('Logged out successfully');
+    }, 50);
   };
 
   const handleDeleteAccount = async () => {

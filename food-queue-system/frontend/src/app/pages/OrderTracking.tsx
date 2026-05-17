@@ -108,6 +108,7 @@ export const OrderTracking: React.FC = () => {
     setCancelling(true);
     try {
       await api.deleteOrder(parseInt(id));
+      await fetchMyOrders();
       toast.success('Order cancelled successfully.');
       navigate('/');
     } catch (err: any) {
