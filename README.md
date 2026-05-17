@@ -27,6 +27,6 @@ uvicorn main:app --reload
 
 ## Usage
 
-Frontend runs on skipthelinefrontend.netlify.app
+Frontend runs on https://skipthelinefrontend.netlify.app/
 
 Backend runs on https://skiptheline-g8dy.onrender.com/
