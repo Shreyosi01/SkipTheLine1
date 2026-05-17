@@ -38,7 +38,8 @@ export const Payment: React.FC = () => {
   const handleConfirmOrder = async () => {
     setIsProcessing(true);
     try {
-      const paymentStatus = paymentMode === 'upi' ? 'paid' : 'pending';
+      // Both UPI and counter start as 'pending' — the vendor confirms receipt in both cases
+      const paymentStatus = 'pending';
 
       const orderPayload = {
         stall_id: parseInt(cart[0].stallId),
