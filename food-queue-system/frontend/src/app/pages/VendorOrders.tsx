@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
-import { Clock, ChefHat, Package, CheckCircle, ArrowLeft } from 'lucide-react';
+import { Clock, ChefHat, Package, CheckCircle, ArrowLeft, QrCode, Banknote } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
@@ -164,6 +164,7 @@ export const VendorOrders: React.FC = () => {
                     </span>
                   </div>
 
+                  {/* Counter payment confirmation */}
                   {order.paymentMode === 'counter' && order.paymentStatus === 'pending' && (
                     <motion.button
                       whileHover={{ scale: 1.02 }}
@@ -171,7 +172,21 @@ export const VendorOrders: React.FC = () => {
                       onClick={() => handleConfirmPayment(order.id)}
                       className="w-full mb-3 flex items-center justify-center gap-2 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-semibold rounded-lg shadow hover:shadow-orange-500/40 transition-all text-sm"
                     >
+                      <Banknote className="w-4 h-4" />
                       Confirm Cash Payment
+                    </motion.button>
+                  )}
+
+                  {/* UPI payment confirmation */}
+                  {order.paymentMode === 'upi' && order.paymentStatus === 'pending' && (
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => handleConfirmPayment(order.id)}
+                      className="w-full mb-3 flex items-center justify-center gap-2 py-2.5 bg-gradient-to-r from-green-500 to-emerald-500 text-white font-semibold rounded-lg shadow hover:shadow-green-500/40 transition-all text-sm"
+                    >
+                      <QrCode className="w-4 h-4" />
+                      Confirm UPI Payment Received
                     </motion.button>
                   )}
 

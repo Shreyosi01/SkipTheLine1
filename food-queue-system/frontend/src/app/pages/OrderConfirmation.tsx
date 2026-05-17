@@ -138,11 +138,11 @@ export const OrderConfirmation: React.FC = () => {
             </div>
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider">
-                {order.paymentMode === 'upi' ? 'Online Payment Verified' : 'Pay at Counter'}
+                {order.paymentMode === 'upi' ? 'UPI Scan & Pay' : 'Pay at Counter'}
               </p>
               <p className="text-sm font-medium opacity-90 mt-0.5">
                 {order.paymentMode === 'upi'
-                  ? 'Paid ₹' + order.total.toFixed(2) + ' via UPI QR Scanner'
+                  ? 'UPI payment of ₹' + order.total.toFixed(2) + ' — awaiting vendor confirmation'
                   : 'Please pay ₹' + order.total.toFixed(2) + ' at physical stall counter'}
               </p>
             </div>
