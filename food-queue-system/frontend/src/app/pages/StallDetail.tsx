@@ -47,6 +47,11 @@ export const StallDetail: React.FC = () => {
       toast.error('This stall is currently closed and not accepting orders.');
       return;
     }
+    // ✅ Guard against adding out-of-stock items programmatically
+    if ((item as any).isAvailable === false) {
+      toast.error(`${item.name} is currently out of stock.`);
+      return;
+    }
     addToCart({
       id: String(item.id),
       stallId: String(stall.id),
@@ -170,6 +175,9 @@ export const StallDetail: React.FC = () => {
             ) : (
               stall.items.map((item, index) => {
                 const qty = getCartQuantity(String(item.id));
+                // ✅ treat undefined as available (backward-safe for old data)
+                const isAvailable = item.isAvailable !== false;
+
                 return (
                   <motion.div
                     key={item.id}
@@ -177,26 +185,34 @@ export const StallDetail: React.FC = () => {
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: index * 0.07 }}
                     className={`bg-gray-50 dark:bg-gray-800/50 rounded-xl overflow-hidden border border-gray-200 dark:border-purple-500/20 hover:border-blue-300 dark:hover:border-cyan-500/50 transition-all ${
-                      !isOpen ? 'opacity-60' : ''
+                      !isOpen || !isAvailable ? 'opacity-60' : ''
                     }`}
                   >
                     <div className="p-4">
                       <div className="flex items-center justify-between gap-4">
                         <div className="flex-1 min-w-0">
                           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">{item.name}</h3>
-                          {item.description && (
-                            <p className="text-gray-600 dark:text-gray-400 text-sm mb-2 truncate">{item.description}</p>
+                          {(item as any).description && (
+                            <p className="text-gray-600 dark:text-gray-400 text-sm mb-2 truncate">{(item as any).description}</p>
                           )}
                           <span className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
                             ₹{Number(item.price).toFixed(2)}
                           </span>
                         </div>
 
-                        {/* ✅ Add/stepper disabled when stall is closed */}
-                        {!isOpen ? (
-                          <div className="flex items-center gap-2 px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 font-semibold rounded-lg flex-shrink-0 cursor-not-allowed select-none">
-                            <Plus className="w-4 h-4" />
-                            Add
+                        {/* ✅ Add/stepper — disabled when stall is closed OR item is out of stock */}
+                        {!isOpen || !isAvailable ? (
+                          <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                            <div className="flex items-center gap-2 px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 font-semibold rounded-lg cursor-not-allowed select-none">
+                              <Plus className="w-4 h-4" />
+                              Add
+                            </div>
+                            {/* Only show "Out of stock" label when stall is open but item is unavailable */}
+                            {!isAvailable && isOpen && (
+                              <span className="text-xs font-semibold text-red-400">
+                                Out of stock
+                              </span>
+                            )}
                           </div>
                         ) : qty === 0 ? (
                           <motion.button
