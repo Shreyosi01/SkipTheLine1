@@ -2,7 +2,7 @@ import React from 'react';
 import { motion } from 'motion/react';
 import { Star, Clock, Users } from 'lucide-react';
 import { Link } from 'react-router';
-import { Stall } from '../data/mockData';
+import { Stall } from '../context/AppContext';
 
 interface FoodCardProps {
   stall: Stall;
@@ -23,8 +23,8 @@ export const FoodCard: React.FC<FoodCardProps> = ({ stall, index }) => {
           {/* Image */}
           <div className="relative h-48 overflow-hidden">
             <motion.img
-              src={stall.image}
-              alt={stall.name}
+              src={stall.image || ''}
+              alt={stall.stallName}
               className="w-full h-full object-cover"
               whileHover={{ scale: 1.1 }}
               transition={{ duration: 0.4 }}
@@ -41,11 +41,11 @@ export const FoodCard: React.FC<FoodCardProps> = ({ stall, index }) => {
           <div className="p-5 space-y-3">
             <div className="flex items-start justify-between">
               <h3 className="text-xl font-bold text-gray-900 dark:text-white group-hover:text-blue-500 dark:group-hover:text-blue-400 transition-colors">
-                {stall.name}
+                {stall.stallName}
               </h3>
               <div className="flex items-center gap-1">
                 <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
-                <span className="text-gray-900 dark:text-white font-semibold text-sm">{stall.rating}</span>
+                <span className="text-gray-900 dark:text-white font-semibold text-sm">4.5</span>
               </div>
             </div>
 
@@ -53,17 +53,17 @@ export const FoodCard: React.FC<FoodCardProps> = ({ stall, index }) => {
             <div className="flex items-center justify-between text-sm">
               <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
                 <Users className="w-4 h-4" />
-                <span>{stall.queueLength} in queue</span>
+                <span>In queue</span>
               </div>
               <div className="flex items-center gap-2 text-blue-500 dark:text-cyan-400">
                 <Clock className="w-4 h-4" />
-                <span>{stall.estimatedWait} mins</span>
+                <span>5 mins</span>
               </div>
             </div>
 
             {/* Animated Queue Dots */}
             <div className="flex items-center gap-1 pt-2">
-              {[...Array(Math.min(stall.queueLength, 10))].map((_, i) => (
+              {[...Array(5)].map((_, i) => (
                 <motion.div
                   key={i}
                   initial={{ scale: 0 }}
@@ -72,9 +72,6 @@ export const FoodCard: React.FC<FoodCardProps> = ({ stall, index }) => {
                   className="w-2 h-2 rounded-full bg-gradient-to-r from-blue-500 to-cyan-500"
                 />
               ))}
-              {stall.queueLength > 10 && (
-                <span className="text-xs text-gray-400 dark:text-gray-500 ml-1">+{stall.queueLength - 10}</span>
-              )}
             </div>
           </div>
 
