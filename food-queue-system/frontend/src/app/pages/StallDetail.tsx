@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router';
-import { motion } from 'motion/react';
-import { ArrowLeft, Plus, Minus, Store, CircleX, CircleCheck } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { ArrowLeft, Plus, Minus, Store, CircleX, CircleCheck, ShoppingCart, AlertTriangle } from 'lucide-react';
 import { QueueMeter } from '../components/QueueMeter';
 import { useApp } from '../context/AppContext';
 import { useQueueStream } from '../../hooks/useQueueStream';
@@ -10,11 +10,22 @@ import { toast } from 'sonner';
 export const StallDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { addToCart, removeFromCart, cart, stalls } = useApp();
+  const { addToCart, removeFromCart, clearCart, cart, stalls } = useApp();
 
   const stall = stalls.find((s) => String(s.id) === String(id));
 
   const { data: queueData, connectionMode, loading: queueLoading } = useQueueStream(id);
+
+  // Cross-stall conflict modal state
+  const [replaceModal, setReplaceModal] = useState<{ show: boolean; pendingItem: any | null }>({
+    show: false,
+    pendingItem: null,
+  });
+
+  // Name of the stall currently in the cart (for the modal)
+  const cartStallName = cart.length > 0
+    ? stalls.find((s) => s.id === cart[0].stallId)?.stallName ?? 'another stall'
+    : null;
 
   // ✅ isOpen falls back to true for stalls that pre-date the field
   const isOpen = (stall as any)?.isOpen ?? true;
@@ -52,6 +63,13 @@ export const StallDetail: React.FC = () => {
       toast.error(`${item.name} is currently out of stock.`);
       return;
     }
+
+    // ✅ Cross-stall conflict: cart has items from a different stall
+    if (cart.length > 0 && cart[0].stallId !== String(stall.id)) {
+      setReplaceModal({ show: true, pendingItem: item });
+      return;
+    }
+
     addToCart({
       id: String(item.id),
       stallId: String(stall.id),
@@ -60,6 +78,25 @@ export const StallDetail: React.FC = () => {
       quantity: 1,
     });
     toast.success(`${item.name} added to cart!`);
+  };
+
+  const handleReplaceCart = () => {
+    const item = replaceModal.pendingItem;
+    if (!item) return;
+    clearCart();
+    addToCart({
+      id: String(item.id),
+      stallId: String(stall.id),
+      name: item.name,
+      price: item.price,
+      quantity: 1,
+    });
+    toast.success(`Cart replaced! ${item.name} added from ${stall.stallName}.`);
+    setReplaceModal({ show: false, pendingItem: null });
+  };
+
+  const handleKeepCart = () => {
+    setReplaceModal({ show: false, pendingItem: null });
   };
 
   const handleDecrement = (item: any) => {
@@ -279,6 +316,90 @@ export const StallDetail: React.FC = () => {
           </motion.div>
         </div>
       </div>
+
+      {/* ✅ Cross-stall Replace Cart Modal */}
+      <AnimatePresence>
+        {replaceModal.show && (
+          <motion.div
+            key="replace-modal-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            style={{ backgroundColor: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(6px)' }}
+            onClick={handleKeepCart}
+          >
+            <motion.div
+              key="replace-modal-card"
+              initial={{ opacity: 0, scale: 0.92, y: 24 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.92, y: 24 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 28 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-sm bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden"
+            >
+              {/* Header strip */}
+              <div className="h-1.5 w-full bg-gradient-to-r from-orange-400 via-red-500 to-pink-500" />
+
+              <div className="p-6">
+                {/* Icon + Title */}
+                <div className="flex items-start gap-4 mb-5">
+                  <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
+                    <AlertTriangle className="w-6 h-6 text-orange-500" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-gray-900 dark:text-white leading-tight">
+                      Start a new cart?
+                    </h2>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                      Your cart already has items from
+                    </p>
+                  </div>
+                </div>
+
+                {/* Stall name pills */}
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="flex-1 flex items-center gap-2 px-3 py-2.5 rounded-xl bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+                    <ShoppingCart className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                    <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 truncate">{cartStallName}</span>
+                  </div>
+                  <span className="text-xs font-bold text-gray-400">→</span>
+                  <div className="flex-1 flex items-center gap-2 px-3 py-2.5 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700/50">
+                    <Store className="w-4 h-4 text-blue-500 flex-shrink-0" />
+                    <span className="text-sm font-semibold text-blue-700 dark:text-blue-300 truncate">{stall.stallName}</span>
+                  </div>
+                </div>
+
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-6 leading-relaxed">
+                  Adding items from <strong className="text-gray-700 dark:text-gray-200">{stall.stallName}</strong> will
+                  remove your current cart from <strong className="text-gray-700 dark:text-gray-200">{cartStallName}</strong>.
+                  You can only order from one stall at a time.
+                </p>
+
+                {/* Actions */}
+                <div className="flex gap-3">
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.97 }}
+                    onClick={handleKeepCart}
+                    className="flex-1 py-2.5 rounded-xl border-2 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-semibold text-sm hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                  >
+                    Keep Existing
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.02, boxShadow: '0 0 20px rgba(239,68,68,0.4)' }}
+                    whileTap={{ scale: 0.97 }}
+                    onClick={handleReplaceCart}
+                    className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-orange-500 to-red-500 text-white font-bold text-sm shadow-lg transition-all"
+                  >
+                    Replace Cart
+                  </motion.button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

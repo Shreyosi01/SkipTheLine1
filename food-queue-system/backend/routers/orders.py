@@ -163,6 +163,13 @@ def update_status(order_id: int, data: schemas.OrderStatusUpdate,
             detail=f"Invalid transition: '{order.status}' → '{data.status}'. Expected next status: '{expected_next}'"
         )
 
+    # ✅ Enforce that payment must be confirmed before marking order as completed
+    if data.status == "completed" and order.payment_status != "paid":
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot mark order as completed until payment is confirmed by the vendor!"
+        )
+
     order.status = data.status
     db.commit()
     return {"message": "Status updated", "status": order.status}

@@ -24,6 +24,13 @@ export const VendorOrders: React.FC = () => {
   const filteredOrders = filter === 'all' ? activeVendorOrders : activeVendorOrders.filter((o) => o.status === filter);
 
   const handleStatusChange = async (orderId: string, newStatus: 'placed' | 'preparing' | 'ready' | 'completed') => {
+    // Client-side block: check if trying to complete an unpaid order
+    const order = orders.find((o) => o.id === orderId);
+    if (newStatus === 'completed' && order && order.paymentStatus !== 'paid') {
+      toast.error('Cannot mark order as completed until payment is confirmed!');
+      return;
+    }
+
     try {
       const res = await api.updateOrderStatus(parseInt(orderId), newStatus);
       if (res.detail) {
@@ -32,8 +39,8 @@ export const VendorOrders: React.FC = () => {
       }
       updateOrderStatus(orderId, newStatus);
       toast.success(`Order status updated to ${newStatus}`);
-    } catch (err) {
-      toast.error('Failed to update order status');
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to update order status');
     }
   };
 
@@ -192,15 +199,21 @@ export const VendorOrders: React.FC = () => {
 
                   {order.status !== 'cancelled' && order.status !== 'completed' && nextStatus && (
                     <motion.button
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
+                      whileHover={nextStatus === 'completed' && order.paymentStatus !== 'paid' ? {} : { scale: 1.02 }}
+                      whileTap={nextStatus === 'completed' && order.paymentStatus !== 'paid' ? {} : { scale: 0.98 }}
                       onClick={() => handleStatusChange(order.id, nextStatus as any)}
-                      className="w-full flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white font-semibold rounded-lg shadow-lg hover:shadow-green-500/50 transition-all"
+                      className={`w-full flex items-center justify-center gap-2 py-3 font-semibold rounded-lg transition-all ${
+                        nextStatus === 'completed' && order.paymentStatus !== 'paid'
+                          ? 'bg-gray-200 dark:bg-gray-800 text-gray-400 dark:text-gray-500 cursor-not-allowed border border-gray-300 dark:border-gray-700/50'
+                          : 'bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-lg hover:shadow-green-500/50'
+                      }`}
                     >
                       {nextStatus === 'preparing' && <ChefHat className="w-4 h-4" />}
                       {nextStatus === 'ready' && <Package className="w-4 h-4" />}
                       {nextStatus === 'completed' && <CheckCircle className="w-4 h-4" />}
-                      Mark as {nextStatus.charAt(0).toUpperCase() + nextStatus.slice(1)}
+                      {nextStatus === 'completed' && order.paymentStatus !== 'paid'
+                        ? 'Payment Pending (Cannot Complete)'
+                        : `Mark as ${nextStatus.charAt(0).toUpperCase() + nextStatus.slice(1)}`}
                     </motion.button>
                   )}
 
