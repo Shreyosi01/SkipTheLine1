@@ -1,9 +1,9 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { Clock, ChefHat, CheckCircle, Package } from 'lucide-react';
+import { Clock, ChefHat, CheckCircle, Package, AlertTriangle } from 'lucide-react';
 
 interface StatusBadgeProps {
-  status: 'placed' | 'preparing' | 'ready' | 'completed';
+  status: 'placed' | 'preparing' | 'ready' | 'completed' | 'cancelled';
 }
 
 const statusConfig = {
@@ -34,6 +34,13 @@ const statusConfig = {
     color: 'from-purple-500 to-pink-500',
     bg: 'bg-purple-500/20',
     border: 'border-purple-500/50',
+  },
+  cancelled: {
+    icon: AlertTriangle,
+    label: 'Cancelled',
+    color: 'from-red-500 to-pink-500',
+    bg: 'bg-red-500/20',
+    border: 'border-red-500/50',
   },
 };
 
