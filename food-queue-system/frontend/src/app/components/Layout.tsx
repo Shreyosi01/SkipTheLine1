@@ -12,19 +12,29 @@ export const Layout: React.FC = () => {
   // If isInitializing is true, don't redirect to auth yet — the user might
   // have a valid token being verified by restoreSession() right now.
   useEffect(() => {
-    if (!isInitializing && !user) {
-      navigate('/');
-    }
-  }, [user, isInitializing, navigate]);
+    if (isInitializing) return;
 
-  useEffect(() => {
-    // Redirect based on user mode
-    if (user && location.pathname === '/dashboard') {
-      if (userMode === 'vendor') {
-        navigate('/vendor');
-      }
+    if (!user) {
+      navigate('/');
+      return;
     }
-  }, [userMode, user, navigate, location.pathname]);
+
+    const path = location.pathname;
+    const isVendorPath = path.startsWith('/vendor');
+    const isCustomerPath =
+      path === '/dashboard' ||
+      path.startsWith('/stall') ||
+      path.startsWith('/cart') ||
+      path.startsWith('/payment') ||
+      path.startsWith('/order');
+
+    if (userMode === 'vendor' && isCustomerPath) {
+      navigate('/vendor');
+    } else if (userMode === 'customer' && isVendorPath) {
+      navigate('/dashboard');
+    }
+  }, [user, userMode, isInitializing, navigate, location.pathname]);
+
 
   // Show nothing while initializing to avoid flashing the login page
   if (isInitializing) {

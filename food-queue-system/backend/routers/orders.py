@@ -106,11 +106,14 @@ def vendor_orders(
     current_user=Depends(get_current_user)
 ):
     if current_user.role != "vendor":
-        raise HTTPException(status_code=403, detail="Vendors only")
+        # Customer: return their own orders (or empty if none)
+        return db.query(models.Order).filter(models.Order.customer_id == current_user.id).order_by(models.Order.created_at.desc()).all()
 
+    # Vendor path – find stall owned by vendor
     stall = db.query(models.Stall).filter(models.Stall.owner_id == current_user.id).first()
     if not stall:
-        raise HTTPException(status_code=404, detail="Vendor must create a stall first")
+        # No stall yet – return empty list instead of 404
+        return []
 
     query = db.query(models.Order).filter(models.Order.stall_id == stall.id)
 
