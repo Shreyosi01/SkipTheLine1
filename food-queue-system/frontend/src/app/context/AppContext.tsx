@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { api } from '../../api/client';
 
 export type UserMode = 'customer' | 'vendor';
@@ -34,7 +34,7 @@ export interface StallItem {
   name: string;
   price: number;
   description?: string;
-  isAvailable?: boolean; // ✅ NEW: whether this item is currently in stock
+  isAvailable?: boolean;
 }
 
 export interface Stall {
@@ -46,7 +46,7 @@ export interface Stall {
   status: 'new' | 'updated';
   image?: string;
   category?: string;
-  isOpen?: boolean; // ✅ NEW: whether the stall is currently accepting orders
+  isOpen?: boolean;
   upiId?: string;
   qrCodeUrl?: string;
 }
@@ -123,14 +123,12 @@ const persistVendorAvatar = (vendorId: string, avatar: string) => {
 };
 // ───────────────────────────────────────────────────────────────────────────
 
-// ✅ UPDATED: now maps is_open from the API response onto the Stall object,
-// and maps is_available from each menu item onto StallItem.
 const mapStall = (s: any, menuItems?: any[]): Stall => ({
   id: String(s.id),
   vendorId: String(s.owner_id),
   stallName: s.name,
   category: s.category,
-  isOpen: s.is_open ?? true, // ✅ default true so existing stalls appear open
+  isOpen: s.is_open ?? true,
   upiId: s.upi_id || undefined,
   qrCodeUrl: s.qr_code_url || undefined,
   items: (menuItems || []).map((i: any) => ({
@@ -138,12 +136,15 @@ const mapStall = (s: any, menuItems?: any[]): Stall => ({
     name: i.name,
     price: i.price,
     description: i.description,
-    isAvailable: i.is_available ?? true, // ✅ default true for safety
+    isAvailable: i.is_available ?? true,
   })),
   updatedAt: s.updated_at || new Date().toISOString(),
   status: s.is_updated ? ('updated' as const) : ('new' as const),
   image: s.avatar || s.image_url || undefined,
 });
+
+// ─── How often to poll for stall updates (ms) ──────────────────────────────
+const STALL_POLL_INTERVAL_MS = 30_000; // 30 seconds
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUserState] = useState<User | null>(null);
@@ -157,15 +158,86 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const stallsRef = React.useRef<Stall[]>([]);
   useEffect(() => { stallsRef.current = stalls; }, [stalls]);
 
+  // ─── Stall polling refs ──────────────────────────────────────────────────
+  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const isFetchingStallsRef = useRef(false); // prevents overlapping fetches
+
+  // ─── fetchStalls (stable reference via useCallback) ──────────────────────
+  const fetchStalls = useCallback(async (): Promise<Stall[]> => {
+    // Guard against concurrent fetches
+    if (isFetchingStallsRef.current) return stallsRef.current;
+    isFetchingStallsRef.current = true;
+    try {
+      const res = await api.listStalls();
+      if (!Array.isArray(res)) return [];
+
+      const vendorAvatars = getStoredVendorAvatars();
+
+      const stallsWithMenus = await Promise.all(
+        res.map(async (s: any) => {
+          try {
+            const menu  = await api.getMenu(s.id);
+            const stall = mapStall(s, Array.isArray(menu) ? menu : []);
+            const localAvatar = vendorAvatars[String(s.owner_id)];
+            return { ...stall, image: stall.image || localAvatar || undefined };
+          } catch {
+            const stall = mapStall(s, []);
+            const localAvatar = vendorAvatars[String(s.owner_id)];
+            return { ...stall, image: stall.image || localAvatar || undefined };
+          }
+        })
+      );
+
+      setStalls(stallsWithMenus);
+      return stallsWithMenus;
+    } catch (e) {
+      console.error('Failed to fetch stalls', e);
+      return [];
+    } finally {
+      isFetchingStallsRef.current = false;
+    }
+  }, []);
+
+  // ─── Start / stop background polling ─────────────────────────────────────
+  const startPolling = useCallback(() => {
+    if (pollTimerRef.current) return; // already running
+    pollTimerRef.current = setInterval(() => {
+      fetchStalls();
+    }, STALL_POLL_INTERVAL_MS);
+  }, [fetchStalls]);
+
+  const stopPolling = useCallback(() => {
+    if (pollTimerRef.current) {
+      clearInterval(pollTimerRef.current);
+      pollTimerRef.current = null;
+    }
+  }, []);
+
+  // ─── Re-fetch immediately when the user switches back to this tab ─────────
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchStalls();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [fetchStalls]);
+
+  // ─── App init ─────────────────────────────────────────────────────────────
   useEffect(() => {
     const initApp = async () => {
       try {
         await Promise.all([fetchStalls(), restoreSession()]);
       } finally {
         setIsInitializing(false);
+        startPolling(); // begin background polling after first load
       }
     };
     initApp();
+
+    return () => stopPolling(); // clean up on unmount
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const restoreSession = async () => {
@@ -210,36 +282,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.warn('Session restore failed — clearing:', err);
       localStorage.removeItem('user');
       localStorage.removeItem('token');
-    }
-  };
-
-  const fetchStalls = async (): Promise<Stall[]> => {
-    try {
-      const res = await api.listStalls();
-      if (!Array.isArray(res)) return [];
-
-      const vendorAvatars = getStoredVendorAvatars();
-
-      const stallsWithMenus = await Promise.all(
-        res.map(async (s: any) => {
-          try {
-            const menu  = await api.getMenu(s.id);
-            const stall = mapStall(s, Array.isArray(menu) ? menu : []);
-            const localAvatar = vendorAvatars[String(s.owner_id)];
-            return { ...stall, image: stall.image || localAvatar || undefined };
-          } catch {
-            const stall = mapStall(s, []);
-            const localAvatar = vendorAvatars[String(s.owner_id)];
-            return { ...stall, image: stall.image || localAvatar || undefined };
-          }
-        })
-      );
-
-      setStalls(stallsWithMenus);
-      return stallsWithMenus;
-    } catch (e) {
-      console.error('Failed to fetch stalls', e);
-      return [];
     }
   };
 
@@ -442,7 +484,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             name:         item.name,
             price:        item.price,
             description:  item.description || '',
-            is_available: item.isAvailable ?? true, // ✅ respects item-level toggle
+            is_available: item.isAvailable ?? true,
           })
         )
       );
@@ -473,14 +515,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         items.filter(i => i.id && currentIds.has(i.id)).map(i => i.id)
       );
 
-      // Delete menu items that were removed
       await Promise.all(
         currentMenu
           .filter((i: any) => !incomingExistingIds.has(String(i.id)))
           .map((i: any) => api.deleteMenuItem(i.id))
       );
 
-      // Update existing items / add new ones — ✅ respects item-level availability toggle
       await Promise.all(
         items.map(item => {
           if (item.id && currentIds.has(item.id)) {
@@ -488,7 +528,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               name:         item.name,
               price:        item.price,
               description:  item.description || '',
-              is_available: item.isAvailable ?? true, // ✅ respects item-level toggle
+              is_available: item.isAvailable ?? true,
             });
           }
           return api.addMenuItem({
@@ -496,7 +536,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             name:         item.name,
             price:        item.price,
             description:  item.description || '',
-            is_available: item.isAvailable ?? true, // ✅ respects item-level toggle
+            is_available: item.isAvailable ?? true,
           });
         })
       );
