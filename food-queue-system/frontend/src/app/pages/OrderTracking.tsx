@@ -1,9 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   ArrowLeft, Clock, ChefHat, Package, CheckCircle,
-  Loader2, Wifi, WifiOff, Trash2, AlertTriangle,
+  Loader2, Wifi, WifiOff, Trash2, AlertTriangle, IndianRupee,
 } from 'lucide-react';
 import { useApp, Order } from '../context/AppContext';
 import { StatusBadge } from '../components/StatusBadge';
@@ -11,19 +11,24 @@ import { api } from '../../api/client';
 import { useQueueStream } from '../../hooks/useQueueStream';
 import { toast } from 'sonner';
 
+// How often to poll the individual order for status + payment updates
+const ORDER_POLL_MS = 5000;
+
 export const OrderTracking: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { orders, stalls, fetchMyOrders, updateOrderStatus } = useApp();
+  const { orders, stalls, fetchMyOrders, updateOrderStatus, updatePaymentStatus } = useApp();
 
   const [fetchedOrder, setFetchedOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [progress, setProgress] = useState(0);
 
-  // ✅ Cancel-order state
+  // Cancel-order state
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+
+  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const contextOrder = orders.find((o) => o.id === id);
   const order = contextOrder || fetchedOrder;
@@ -40,7 +45,66 @@ export const OrderTracking: React.FC = () => {
     ? (queuePosition - 1) * 5
     : order?.estimatedTime ?? 15;
 
-  // Fetch order on mount
+  // ── Map a raw API response to our Order shape ────────────────────────────
+  const mapApiOrder = (res: any): Order => {
+    const stallName = stalls.find((s) => s.id === String(res.stall_id))?.stallName || 'Stall';
+    return {
+      id: String(res.id),
+      stallId: String(res.stall_id),
+      stallName,
+      items: (res.items || []).map((i: any) => ({
+        id: String(i.id),
+        name: i.menu_item_name || 'Item',
+        price: i.price || 0,
+        quantity: i.quantity,
+      })),
+      total: res.total_price,
+      token: res.token,
+      status: res.status,
+      paymentMode: res.payment_mode || 'counter',
+      paymentStatus: res.payment_status || 'pending',
+      estimatedTime: 15,
+      timestamp: new Date(res.created_at),
+    };
+  };
+
+  // ── Poll the individual order every ORDER_POLL_MS ────────────────────────
+  const startOrderPolling = (orderId: string) => {
+    if (pollTimerRef.current) return;
+    pollTimerRef.current = setInterval(async () => {
+      try {
+        const res = await api.getOrder(parseInt(orderId));
+        const mapped = mapApiOrder(res);
+
+        // Sync status into context + local state
+        if (mapped.status !== order?.status) {
+          updateOrderStatus(mapped.id, mapped.status as any);
+        }
+        // Sync payment status into context + local state
+        if (mapped.paymentStatus !== order?.paymentStatus) {
+          updatePaymentStatus(mapped.id, mapped.paymentStatus as any);
+        }
+
+        setFetchedOrder(mapped);
+
+        // Stop polling once the order reaches a terminal state
+        if (mapped.status === 'completed' || mapped.status === 'cancelled') {
+          stopOrderPolling();
+        }
+      } catch {
+        // non-fatal — keep polling
+      }
+    }, ORDER_POLL_MS);
+  };
+
+  const stopOrderPolling = () => {
+    if (pollTimerRef.current) {
+      clearInterval(pollTimerRef.current);
+      pollTimerRef.current = null;
+    }
+  };
+
+  // ── Initial load ─────────────────────────────────────────────────────────
   useEffect(() => {
     if (!id) return;
 
@@ -52,26 +116,13 @@ export const OrderTracking: React.FC = () => {
 
       try {
         const res = await api.getOrder(parseInt(id));
-        const stallName = stalls.find((s) => s.id === String(res.stall_id))?.stallName || 'Stall';
-        const mapped: Order = {
-          id: String(res.id),
-          stallId: String(res.stall_id),
-          stallName,
-          items: (res.items || []).map((i: any) => ({
-            id: String(i.id),
-            name: i.menu_item_name || 'Item',
-            price: i.price || 0,
-            quantity: i.quantity,
-          })),
-          total: res.total_price,
-          token: res.token,
-          status: res.status,
-          paymentMode: res.payment_mode || 'counter',
-          paymentStatus: res.payment_status || 'pending',
-          estimatedTime: 15,
-          timestamp: new Date(res.created_at),
-        };
+        const mapped = mapApiOrder(res);
         setFetchedOrder(mapped);
+
+        // Only start polling if order isn't already done
+        if (mapped.status !== 'completed' && mapped.status !== 'cancelled') {
+          startOrderPolling(id);
+        }
       } catch {
         setNotFound(true);
       } finally {
@@ -80,10 +131,12 @@ export const OrderTracking: React.FC = () => {
     };
 
     load();
+
+    return () => stopOrderPolling();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  // SSE: sync order status into context when it changes server-side
+  // ── SSE: sync order status when queue stream carries an update ───────────
   useEffect(() => {
     if (!queueData || !order) return;
     const liveOrder = queueData.orders.find(o => o.token === order.token);
@@ -95,7 +148,7 @@ export const OrderTracking: React.FC = () => {
     }
   }, [queueData]);
 
-  // Progress bar driven by order status
+  // ── Progress bar driven by order status ──────────────────────────────────
   useEffect(() => {
     if (!order) return;
     const progressMap: Record<string, number> = {
@@ -104,7 +157,14 @@ export const OrderTracking: React.FC = () => {
     setProgress(progressMap[order.status] ?? 25);
   }, [order?.status]);
 
-  // ✅ Cancel order handler
+  // ── Stop polling when order reaches a terminal state ─────────────────────
+  useEffect(() => {
+    if (order?.status === 'completed' || order?.status === 'cancelled') {
+      stopOrderPolling();
+    }
+  }, [order?.status]);
+
+  // ── Cancel order handler ─────────────────────────────────────────────────
   const handleCancelOrder = async () => {
     if (!order || !id) return;
     setCancelling(true);
@@ -158,9 +218,8 @@ export const OrderTracking: React.FC = () => {
   ];
 
   const currentStepIndex = steps.findIndex((s) => s.status === order.status);
-
-  // ✅ Cancel is only offered while the order is still "placed"
   const canCancel = order.status === 'placed';
+  const isTerminal = order.status === 'completed' || order.status === 'cancelled';
 
   return (
     <div className="min-h-screen bg-white dark:bg-gray-900 pt-20 pb-12 transition-colors duration-200">
@@ -193,9 +252,9 @@ export const OrderTracking: React.FC = () => {
           <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-2">Track Your Order</h1>
           <p className="text-gray-600 dark:text-gray-400">{order.stallName}</p>
 
-          {/* SSE connection indicator */}
+          {/* Connection indicator */}
           <div className="flex items-center justify-center gap-2 mt-2">
-            {connectionMode === 'sse' && (
+            {!isTerminal && connectionMode === 'sse' && (
               <span className="flex items-center gap-1.5 text-xs text-green-600 dark:text-green-400">
                 <span className="relative flex h-2 w-2">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
@@ -204,16 +263,21 @@ export const OrderTracking: React.FC = () => {
                 Live updates active
               </span>
             )}
-            {connectionMode === 'polling' && (
+            {!isTerminal && connectionMode === 'polling' && (
               <span className="flex items-center gap-1.5 text-xs text-yellow-600 dark:text-yellow-400">
                 <Wifi className="w-3 h-3" />
                 Updating every 5s
               </span>
             )}
-            {connectionMode === 'idle' && order.status !== 'completed' && (
+            {!isTerminal && connectionMode === 'idle' && (
               <span className="flex items-center gap-1.5 text-xs text-gray-400">
                 <WifiOff className="w-3 h-3" />
                 Connecting…
+              </span>
+            )}
+            {isTerminal && (
+              <span className="flex items-center gap-1.5 text-xs text-gray-400 dark:text-gray-500">
+                Order {order.status}
               </span>
             )}
           </div>
@@ -228,24 +292,36 @@ export const OrderTracking: React.FC = () => {
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className={`mb-8 max-w-md mx-auto p-4 rounded-xl border flex items-center justify-between text-sm shadow-sm ${
-            order.paymentMode === 'upi'
+          className={`mb-8 max-w-md mx-auto p-4 rounded-xl border flex items-center justify-between text-sm shadow-sm transition-colors duration-300 ${
+            order.paymentStatus === 'paid'
               ? 'bg-green-50/50 dark:bg-green-950/20 border-green-200 dark:border-green-800 text-green-800 dark:text-green-300'
+              : order.paymentMode === 'upi'
+              ? 'bg-blue-50/50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-300'
               : 'bg-amber-50/50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300'
           }`}
         >
-          <span className="font-semibold">
-            {order.paymentMode === 'upi'
-              ? 'Paid Online (UPI QR Scanner)'
-              : 'Pay at Counter (Cash/Card)'}
-          </span>
-          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
-            order.paymentStatus === 'paid'
-              ? 'bg-green-200/60 dark:bg-green-800/40 text-green-700 dark:text-green-300'
-              : 'bg-amber-200/60 dark:bg-amber-800/40 text-amber-700 dark:text-amber-300'
-          }`}>
-            {order.paymentStatus === 'paid' ? 'Paid' : 'Pending'}
-          </span>
+          <div className="flex items-center gap-2">
+            <IndianRupee className="w-4 h-4 flex-shrink-0" />
+            <span className="font-semibold">
+              {order.paymentMode === 'upi'
+                ? 'Paid Online (UPI QR Scanner)'
+                : 'Pay at Counter (Cash/Card)'}
+            </span>
+          </div>
+
+          {/* Payment status pill — animates when it changes to 'paid' */}
+          <motion.span
+            key={order.paymentStatus}
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider flex-shrink-0 ${
+              order.paymentStatus === 'paid'
+                ? 'bg-green-200/60 dark:bg-green-800/40 text-green-700 dark:text-green-300'
+                : 'bg-amber-200/60 dark:bg-amber-800/40 text-amber-700 dark:text-amber-300'
+            }`}
+          >
+            {order.paymentStatus === 'paid' ? '✓ Paid' : 'Pending'}
+          </motion.span>
         </motion.div>
 
         {/* Progress Bar */}
@@ -309,7 +385,7 @@ export const OrderTracking: React.FC = () => {
                     )}
                   </div>
 
-                  {isActive && !isCurrent && (
+                  {isActive && (!isCurrent || (step.status === 'ready' && order.paymentStatus === 'paid')) && (
                     <motion.div
                       initial={{ scale: 0 }}
                       animate={{ scale: 1 }}
@@ -352,8 +428,8 @@ export const OrderTracking: React.FC = () => {
           </div>
         </motion.div>
 
-        {/* Live Queue Status */}
-        {order.status !== 'completed' && (
+        {/* Live Queue Status — hidden once completed */}
+        {!isTerminal && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -398,7 +474,7 @@ export const OrderTracking: React.FC = () => {
           </motion.div>
         )}
 
-        {/* ✅ Cancel Order — only shown while order is "placed" */}
+        {/* Cancel Order — only shown while order is "placed" */}
         <AnimatePresence>
           {canCancel && (
             <motion.div
@@ -409,7 +485,6 @@ export const OrderTracking: React.FC = () => {
               className="mt-6"
             >
               {!showCancelConfirm ? (
-                /* ── Trigger button ── */
                 <button
                   onClick={() => setShowCancelConfirm(true)}
                   className="w-full flex items-center justify-center gap-2 py-3.5 px-6 rounded-xl border-2 border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 font-semibold hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
@@ -418,7 +493,6 @@ export const OrderTracking: React.FC = () => {
                   Cancel Order
                 </button>
               ) : (
-                /* ── Inline confirmation panel ── */
                 <motion.div
                   initial={{ opacity: 0, scale: 0.97 }}
                   animate={{ opacity: 1, scale: 1 }}
