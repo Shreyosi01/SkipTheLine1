@@ -5,7 +5,6 @@ import {
   Sparkles, RefreshCw, IndianRupee, ArrowLeft, X,
 } from 'lucide-react';
 import { useApp, Stall, StallItem } from '../context/AppContext';
-import { requestPermission } from '../services/notification';
 import { Link, useParams, useNavigate } from 'react-router';
 
 const validItems = (stall: Stall): StallItem[] =>
@@ -235,10 +234,6 @@ export const StallDetail: React.FC = () => {
 
 // ─── Customer Home  (route: "/dashboard") ─────────────────────────────────────
 export const CustomerHome: React.FC = () => {
-  // Request notification permission on load
-  React.useEffect(() => {
-    requestPermission();
-  }, []);
   const { stalls, orders } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
   const [showHistory, setShowHistory] = useState(false);

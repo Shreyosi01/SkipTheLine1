@@ -1,8 +1,5 @@
-import React, { createContext, useContext, useState, useMemo, useEffect, useRef } from 'react';
-import { usePageVisibility } from '../hooks/usePageVisibility';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { api } from '../../api/client';
-import { toast } from 'sonner';
-
 
 export type UserMode = 'customer' | 'vendor';
 export type OrderStatus = 'placed' | 'preparing' | 'ready' | 'completed' | 'cancelled';
@@ -72,9 +69,7 @@ interface AppContextType {
   user: User | null;
   userMode: UserMode;
   cart: CartItem[];
-  orders: Order[]; // full list (active + completed + cancelled)
-  completedOrders: Order[];
-  cancelledOrders: Order[];
+  orders: Order[];
   isLoading: boolean;
   isInitializing: boolean;
   stalls: Stall[];
@@ -104,8 +99,9 @@ interface AppContextType {
   updateProfile: (data: { name?: string; email?: string; phone?: string; avatar?: string }) => Promise<void>;
   fetchMyOrders: () => Promise<void>;
   fetchVendorOrders: () => Promise<void>;
-  fetchStalls: (forceRefresh?: boolean) => Promise<Stall[]>;
+  fetchStalls: () => Promise<Stall[]>;
 }
+
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 // ─── Vendor avatar persistence ─────────────────────────────────────────────
@@ -153,49 +149,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [user, setUserState] = useState<User | null>(null);
   const [userMode, setUserMode] = useState<UserMode>('customer');
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [orders, setOrders] = useState<Order[]>([]); // active orders only
-  const [completedOrders, setCompletedOrders] = useState<Order[]>([]);
-  const [cancelledOrders, setCancelledOrders] = useState<Order[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
   const [stalls, setStalls] = useState<Stall[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
 
   const stallsRef = React.useRef<Stall[]>([]);
-  const isVisible = usePageVisibility();
-  const prevOrdersRef = React.useRef<Order[]>([]);
-
   useEffect(() => { stallsRef.current = stalls; }, [stalls]);
-
-  const determineActiveRole = (): UserMode => {
-    const path = window.location.pathname;
-    if (path.startsWith('/vendor')) {
-      return 'vendor';
-    }
-    if (
-      path.startsWith('/dashboard') ||
-      path.startsWith('/stall') ||
-      path.startsWith('/cart') ||
-      path.startsWith('/payment') ||
-      path.startsWith('/order')
-    ) {
-      return 'customer';
-    }
-    const sessionRole = sessionStorage.getItem('active_role') as UserMode | null;
-    if (sessionRole) return sessionRole;
-
-    const vendorToken = localStorage.getItem('vendor_token');
-    const customerToken = localStorage.getItem('customer_token');
-    if (vendorToken && !customerToken) return 'vendor';
-    if (customerToken && !vendorToken) return 'customer';
-
-    return 'customer';
-  };
-
-  useEffect(() => {
-    if ('Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission().catch(() => {});
-    }
-  }, []);
 
   useEffect(() => {
     const initApp = async () => {
@@ -208,45 +168,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     initApp();
   }, []);
 
-  // Background polling coordinator – respects page visibility
-  useEffect(() => {
-    if (!user) return;
-    // isVisible obtained from hook at component level
-
-    const startPolling = (fn: () => void, intervalMs: number) => {
-      if (!isVisible) return () => {};
-      fn(); // immediate fetch
-      const id = setInterval(() => {
-        if (isVisible) fn();
-      }, intervalMs);
-      return () => clearInterval(id);
-    };
-
-    const stopOrders = startPolling(() => {
-      if (userMode === 'vendor') {
-        fetchVendorOrders().catch(() => {});
-      } else {
-        fetchMyOrders().catch(() => {});
-      }
-    }, 8000); // 8 seconds
-
-    const stopStalls = startPolling(() => {
-      fetchStalls().catch(() => {});
-    }, 30000); // 30 seconds
-
-    return () => {
-      stopOrders();
-      stopStalls();
-    };
-  }, [user?.id, userMode]);
-
-
   const restoreSession = async () => {
-    const activeRole = determineActiveRole();
-    sessionStorage.setItem('active_role', activeRole);
-
-    const savedToken = localStorage.getItem(`${activeRole}_token`);
-    const savedUser  = localStorage.getItem(`${activeRole}_user`);
+    const savedToken = localStorage.getItem('token');
+    const savedUser  = localStorage.getItem('user');
     if (!savedToken || !savedUser) return;
 
     try {
@@ -271,7 +195,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       setUserState(u);
       setUserMode(u.mode);
-      localStorage.setItem(`${activeRole}_user`, JSON.stringify(u));
+      localStorage.setItem('user', JSON.stringify(u));
 
       if (u.mode === 'vendor') {
         api.vendorOrders()
@@ -283,22 +207,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           .catch(err => console.error('Auto-fetch orders failed:', err));
       }
     } catch (err) {
-      console.warn('Session restore failed — clearing role session:', err);
-      localStorage.removeItem(`${activeRole}_user`);
-      localStorage.removeItem(`${activeRole}_token`);
+      console.warn('Session restore failed — clearing:', err);
+      localStorage.removeItem('user');
+      localStorage.removeItem('token');
     }
   };
 
-
-  const menuCache = React.useRef<Record<string, StallItem[]>>({});
-
-  const fetchStalls = async (forceRefresh = false): Promise<Stall[]> => {
+  const fetchStalls = async (): Promise<Stall[]> => {
     try {
-      // Reset menu cache on forced refresh to avoid stale menu items
-      if (forceRefresh) {
-        menuCache.current = {};
-      }
-      const res = await api.listStalls(forceRefresh ? { noCache: true } : {});
+      const res = await api.listStalls();
       if (!Array.isArray(res)) return [];
 
       const vendorAvatars = getStoredVendorAvatars();
@@ -306,19 +223,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const stallsWithMenus = await Promise.all(
         res.map(async (s: any) => {
           try {
-            // Determine whether to use cached menu or fetch fresh data
-            let menuItems: any[] = [];
-            if (!forceRefresh && menuCache.current[s.id]) {
-              // Use cached menu when not forcing refresh
-              menuItems = menuCache.current[s.id];
-            } else {
-              // Always fetch fresh menu data when forceRefresh is true or cache miss
-              const menu = await api.getMenu(s.id);
-              menuItems = Array.isArray(menu) ? menu : [];
-              // Update cache with the new data
-              menuCache.current[s.id] = menuItems;
-            }
-            const stall = mapStall(s, menuItems);
+            const menu  = await api.getMenu(s.id);
+            const stall = mapStall(s, Array.isArray(menu) ? menu : []);
             const localAvatar = vendorAvatars[String(s.owner_id)];
             return { ...stall, image: stall.image || localAvatar || undefined };
           } catch {
@@ -340,9 +246,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const setUser = (u: User | null) => {
     setUserState(u);
     if (u) {
-      const activeRole = u.mode;
-      sessionStorage.setItem('active_role', activeRole);
-      localStorage.setItem(`${activeRole}_user`, JSON.stringify(u));
+      localStorage.setItem('user', JSON.stringify(u));
       if (u.mode === 'vendor' && u.avatar) {
         persistVendorAvatar(u.id, u.avatar);
         setStalls(prev =>
@@ -352,12 +256,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         );
       }
     } else {
-      const activeRole = sessionStorage.getItem('active_role') || 'customer';
-      localStorage.removeItem(`${activeRole}_user`);
-      localStorage.removeItem(`${activeRole}_token`);
+      localStorage.removeItem('user');
+      localStorage.removeItem('token');
     }
   };
-
 
   const updateProfile = async (data: { name?: string; email?: string; phone?: string; avatar?: string }) => {
     if (!user) return;
@@ -375,7 +277,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     stallsRef.current.find(s => s.id === stallId)?.stallName || 'Stall';
 
   const mapAndSetOrders = (apiData: any[]) => {
-    const previousOrders = prevOrdersRef.current;
     const mapped: Order[] = apiData.map((o: any) => ({
       id: String(o.id),
       stallId: String(o.stall_id),
@@ -391,53 +292,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       status: o.status as OrderStatus,
       paymentMode: o.payment_mode || 'counter',
       paymentStatus: o.payment_status || 'pending',
-      // Dynamic estimated time: 15 minutes total, subtract elapsed minutes
-      estimatedTime: Math.max(0, 15 - Math.floor((Date.now() - new Date(o.created_at).getTime()) / 60000)),
+      estimatedTime: 15,
       timestamp: new Date(o.created_at),
     }));
-    const active = mapped.filter(o => o.status !== 'completed' && o.status !== 'cancelled');
-    const completed = mapped.filter(o => o.status === 'completed');
-    const cancelled = mapped.filter(o => o.status === 'cancelled');
-
-    // Update refs for future diffing after notifications are sent
-    // Customer notifications
-    if (userMode === 'customer' && previousOrders.length > 0) {
-      mapped.forEach(newOrder => {
-        const prevOrder = previousOrders.find(o => o.id === newOrder.id);
-        if (prevOrder && prevOrder.status !== newOrder.status) {
-          import('../services/notification').then(m => m.notifyCustomer(newOrder, newOrder.status));
-        }
-      });
-    }
-    // Vendor notifications
-    if (userMode === 'vendor' && previousOrders.length > 0) {
-      mapped.forEach(newOrder => {
-        const prevOrder = previousOrders.find(o => o.id === newOrder.id);
-        if (prevOrder && prevOrder.status !== newOrder.status) {
-          import('../services/notification').then(m => m.notifyVendor(newOrder));
-        }
-      });
-    }
-    prevOrdersRef.current = mapped;
-    setOrders(active);
-    setCompletedOrders(completed);
-    setCancelledOrders(cancelled);
+    setOrders(mapped);
   };
-
 
   const loginUser = async (email: string, password: string): Promise<User> => {
     setIsLoading(true);
     try {
       const res = await api.login({ email, password });
-      const role = res.user.role as UserMode;
-      sessionStorage.setItem('active_role', role);
-      localStorage.setItem(`${role}_token`, res.access_token);
+      localStorage.setItem('token', res.access_token);
 
       let u: User = {
         id: String(res.user.id),
         name: res.user.name,
         email: res.user.email,
-        mode: role,
+        mode: res.user.role as UserMode,
         stallId: res.user.stall_id != null ? String(res.user.stall_id) : undefined,
         phone: res.user.phone,
         avatar: res.user.avatar,
@@ -465,15 +336,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-
   const registerUser = async (
     name: string, email: string, password: string, role: UserMode, stallId?: number, phone?: string
   ) => {
     setIsLoading(true);
     try {
       const res = await api.register({ name, email, password, role, stall_id: stallId, phone });
-      sessionStorage.setItem('active_role', role);
-      localStorage.setItem(`${role}_token`, res.access_token);
+      localStorage.setItem('token', res.access_token);
       const u: User = {
         id: String(res.user.id),
         name: res.user.name,
@@ -489,17 +358,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-
   const clearSession = () => {
-    const activeRole = sessionStorage.getItem('active_role') || 'customer';
     setUserState(null);
     setOrders([]);
     setCart([]);
-    localStorage.removeItem(`${activeRole}_user`);
-    localStorage.removeItem(`${activeRole}_token`);
+    localStorage.removeItem('user');
+    localStorage.removeItem('token');
     fetchStalls();
   };
-
 
   const logoutUser  = () => clearSession();
 
@@ -533,45 +399,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const addOrder  = (order: Order) => setOrders(prev => [order, ...prev]);
 
-  const updateOrderStatus = async (id: string, status: OrderStatus) => {
-    // Optimistically update UI before sending request
-    setOrders(prev => {
-      const updated = prev.map(o => (o.id === id ? { ...o, status } : o));
-      // Update completed and cancelled lists based on optimistic status
-      setCompletedOrders(prevComp =>
-        status === 'completed'
-          ? [...prevComp, updated.find(o => o.id === id)!]
-          : prevComp.filter(o => o.id !== id)
-      );
-      setCancelledOrders(prevCanc =>
-        status === 'cancelled'
-          ? [...prevCanc, updated.find(o => o.id === id)!]
-          : prevCanc.filter(o => o.id !== id)
-      );
-      // Trigger notification immediately
-      const changedOrder = updated.find(o => o.id === id);
-      if (changedOrder) {
-        if (userMode === 'customer') {
-          import('../services/notification').then(m => m.notifyCustomer(changedOrder, status));
-        } else if (userMode === 'vendor') {
-          import('../services/notification').then(m => m.notifyVendor(changedOrder));
-        }
-      }
-      // Return filtered active orders
-      return updated.filter(o => o.status !== 'completed' && o.status !== 'cancelled');
-    });
-    try {
-      await api.updateOrderStatus(id, status);
-      // If needed, refresh the list for consistency
-      if (userMode === 'vendor') await fetchVendorOrders();
-      else await fetchMyOrders();
-    } catch (e) {
-      console.error('Failed to update order status', e);
-      // Roll back optimistic update by refetching latest orders
-      if (userMode === 'vendor') await fetchVendorOrders();
-      else await fetchMyOrders();
-      throw e;
-    }
+  const updateOrderStatus = (id: string, status: OrderStatus) => {
+    setOrders(prev => prev.map(o => o.id === id ? { ...o, status } : o));
   };
 
   const updatePaymentStatus = (id: string, status: 'paid' | 'pending') => {
@@ -620,12 +449,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       const updatedUser = { ...user, stallId: String(stallId), avatar: resolvedAvatar };
       if (resolvedAvatar) persistVendorAvatar(user.id, resolvedAvatar);
-      // Invalidate menu cache for this stall to ensure fresh data
-      delete (menuCache.current as any)[stallId];
       setUser(updatedUser);
-      // Force refresh stalls to get updated menu items
-      await fetchStalls(true);
-
+      await fetchStalls();
     } catch (e: any) {
       console.error('Failed to create stall', e);
       throw e;
@@ -676,10 +501,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         })
       );
 
-      // Invalidate menu cache for this stall to ensure fresh data after update
-      delete (menuCache.current as any)[id];
-      // Force refresh stalls to reflect updated menu items
-      await fetchStalls(true);
+      await fetchStalls();
     } catch (e: any) {
       console.error('Failed to update stall', e);
       throw e;
@@ -690,35 +512,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   return (
     <AppContext.Provider value={{
-      user,
-      userMode,
-      cart,
-      orders,
-      completedOrders,
-      cancelledOrders,
-      isLoading,
-      isInitializing,
-      stalls,
-      setUser,
-      setUserMode,
-      addToCart,
-      removeFromCart,
-      updateCartItemQuantity,
-      clearCart,
-      addOrder,
-      updateOrderStatus,
-      updatePaymentStatus,
-      loginUser,
-      registerUser,
-      logoutUser,
-      deleteUser,
-      updateProfile,
-      fetchMyOrders,
-      fetchVendorOrders,
-      fetchStalls,
-      createStall,
-      updateStall,
-      getVendorStall,
+      user, userMode, cart, orders, isLoading, isInitializing, stalls,
+      setUser, setUserMode, addToCart, removeFromCart, updateCartItemQuantity, clearCart,
+      addOrder, updateOrderStatus, updatePaymentStatus, loginUser, registerUser,
+      logoutUser, deleteUser, updateProfile,
+      fetchMyOrders, fetchVendorOrders, fetchStalls,
+      createStall, updateStall, getVendorStall,
     }}>
       {children}
     </AppContext.Provider>
