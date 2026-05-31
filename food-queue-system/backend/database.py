@@ -1,18 +1,10 @@
-import os
-from pathlib import Path
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, declarative_base
-
-# Resolve an absolute path for the SQLite database in the project root
-BASE_DIR = Path(__file__).resolve().parent.parent
-DB_FILE = BASE_DIR / "skiptheline.db"
-# Ensure the directory exists and the file is created (SQLite will create it, but we touch it to set permissions)
-if not DB_FILE.exists():
-    DB_FILE.touch(mode=0o664, exist_ok=True)
-
-# Use an absolute SQLite URL
-SQLALCHEMY_DATABASE_URL = f"sqlite:///{DB_FILE}"
-
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+from dotenv import load_dotenv
+import os
+load_dotenv()
+SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./skiptheline.db")
 
 
 engine = create_engine(

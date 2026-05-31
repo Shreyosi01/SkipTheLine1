@@ -3,8 +3,7 @@ import { useParams, useNavigate } from 'react-router';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   ArrowLeft, Clock, ChefHat, Package, CheckCircle,
-  Loader2, Wifi, WifiOff, Trash2, AlertTriangle, Sparkles,
-  XCircle
+  Loader2, Wifi, WifiOff, Trash2, AlertTriangle,
 } from 'lucide-react';
 import { useApp, Order } from '../context/AppContext';
 import { StatusBadge } from '../components/StatusBadge';
@@ -37,53 +36,9 @@ export const OrderTracking: React.FC = () => {
     ? queueData.orders.findIndex(o => o.token === order?.token) + 1
     : 0;
   const queuePosition = livePosition > 0 ? livePosition : 1;
-
-  // dynamic AI-based queue position & wait time estimation logic
-  const getAiPredictedWait = () => {
-    if (!order) return 15;
-    
-    // 1. Calculate preparation footprint of the order itself
-    const totalOrderItemsQty = order.items.reduce((sum, item) => sum + item.quantity, 0);
-    const basePrepTime = totalOrderItemsQty * 3; // base 3 minutes per item
-    
-    if (!queueData || !queueData.orders) {
-      return basePrepTime + 5; // default buffer
-    }
-
-    // 2. Locate order in live queue
-    const liveIndex = livePosition - 1;
-    
-    if (liveIndex === -1 || livePosition === 0) {
-      // If completed or cancelled
-      if (order.status === 'completed') return 0;
-      if (order.status === 'cancelled') return 0;
-      // If preparing or ready
-      return order.status === 'ready' ? 0 : 5;
-    }
-
-    if (liveIndex === 0) {
-      // Order is actively being prepared (first in queue)
-      return order.status === 'preparing' ? 3 : 5;
-    }
-
-    // 3. Sum prep times of all preceding orders in the queue
-    let precedingPrepTime = 0;
-    for (let i = 0; i < liveIndex; i++) {
-      // Average 6 minutes per preceding active order
-      precedingPrepTime += 6;
-    }
-
-    // 4. Vendor load multiplier
-    const totalQueueLength = queueData.queue_length || queueData.orders.length;
-    const loadFactor = totalQueueLength > 5 ? 1.2 : 1.0;
-
-    const predicted = Math.ceil((precedingPrepTime + basePrepTime) * loadFactor);
-    return Math.max(5, predicted);
-  };
-
-  const estimatedWait = getAiPredictedWait();
-
-
+  const estimatedWait = queueData
+    ? (queuePosition - 1) * 5
+    : order?.estimatedTime ?? 15;
 
   // Fetch order on mount
   useEffect(() => {
@@ -144,11 +99,7 @@ export const OrderTracking: React.FC = () => {
   useEffect(() => {
     if (!order) return;
     const progressMap: Record<string, number> = {
-      placed: 25,
-      preparing: 50,
-      ready: 75,
-      cancelled: 0,
-      completed: 100,
+      placed: 25, preparing: 50, ready: 75, completed: 100,
     };
     setProgress(progressMap[order.status] ?? 25);
   }, [order?.status]);
@@ -203,7 +154,6 @@ export const OrderTracking: React.FC = () => {
     { status: 'placed',    icon: Clock,       label: 'Order Placed', time: '0 min' },
     { status: 'preparing', icon: ChefHat,      label: 'Preparing',   time: '5 min' },
     { status: 'ready',     icon: Package,      label: 'Ready',       time: '15 min' },
-    { status: 'cancelled', icon: XCircle,    label: 'Cancelled',   time: '' },
     { status: 'completed', icon: CheckCircle,  label: 'Completed',   time: '' },
   ];
 
@@ -271,7 +221,7 @@ export const OrderTracking: React.FC = () => {
 
         {/* Status Badge */}
         <div className="flex justify-center mb-4">
-          <StatusBadge status ={order.status} />
+          <StatusBadge status={order.status} />
         </div>
 
         {/* Payment Banner */}
@@ -403,71 +353,47 @@ export const OrderTracking: React.FC = () => {
         </motion.div>
 
         {/* Live Queue Status */}
-        {order && order.status !== 'completed' && order.status !== 'cancelled' && (
+        {order.status !== 'completed' && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.6 }}
-            className="mt-6 bg-gradient-to-br from-purple-500/10 via-pink-500/5 to-cyan-500/10 dark:from-purple-950/30 dark:via-gray-900/40 dark:to-cyan-950/20 backdrop-blur-md rounded-2xl p-6 border border-purple-200/60 dark:border-purple-500/30 shadow-lg shadow-purple-500/5"
+            className="mt-6 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 backdrop-blur-sm rounded-xl p-6 border border-purple-200 dark:border-purple-500/30"
           >
-            <div className="flex items-center justify-center gap-2 mb-4">
-              <Sparkles className="w-5 h-5 text-purple-500 dark:text-purple-400 animate-pulse" />
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white">
-                AI Smart Queue Prediction
-              </h3>
-            </div>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-6 sm:gap-12">
+            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4 text-center">
+              Live Queue Status
+            </h3>
+            <div className="flex items-center justify-center gap-8">
               <div className="text-center">
-                <p className="text-gray-500 dark:text-gray-400 text-xs font-semibold uppercase tracking-wider mb-2">Queue Position</p>
+                <p className="text-gray-600 dark:text-gray-400 text-sm mb-2">Your Position</p>
                 <motion.div
                   key={queuePosition}
                   animate={{ scale: [1, 1.1, 1] }}
                   transition={{ duration: 0.4 }}
-                  className="w-20 h-20 mx-auto rounded-full bg-gradient-to-tr from-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-pink-500/30"
+                  className="w-20 h-20 mx-auto rounded-full bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center"
                 >
-                  <span className="text-3xl font-extrabold text-white">#{queuePosition}</span>
+                  <span className="text-3xl font-bold text-white">#{queuePosition}</span>
                 </motion.div>
               </div>
-              <div className="hidden sm:block h-16 w-px bg-gray-200 dark:bg-gray-700" />
+              <div className="h-16 w-px bg-gray-300 dark:bg-gray-700" />
               <div className="text-center">
-                <p className="text-gray-500 dark:text-gray-400 text-xs font-semibold uppercase tracking-wider mb-2">AI-Predicted Wait</p>
+                <p className="text-gray-600 dark:text-gray-400 text-sm mb-2">Est. Wait Time</p>
                 <motion.p
                   key={estimatedWait}
                   animate={{ scale: [1, 1.05, 1] }}
                   transition={{ duration: 0.4 }}
-                  className="text-4xl font-extrabold bg-gradient-to-r from-blue-500 via-cyan-500 to-teal-400 bg-clip-text text-transparent"
+                  className="text-4xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent"
                 >
-                  {estimatedWait} mins
+                  {estimatedWait}m
                 </motion.p>
               </div>
             </div>
-            
-            {/* AI Breakdown */}
-            <div className="mt-6 pt-4 border-t border-gray-100 dark:border-gray-800 text-xs text-gray-500 dark:text-gray-400 space-y-2">
-              <div className="flex justify-between items-center">
-                <span>Preceding Active Queue ({queuePosition - 1} ahead)</span>
-                <span className="font-semibold text-gray-700 dark:text-gray-300">+{(queuePosition - 1) * 6} mins</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span>Order Volume Prep footprint ({order.items.reduce((sum, item) => sum + item.quantity, 0)} items)</span>
-                <span className="font-semibold text-gray-700 dark:text-gray-300">+{order.items.reduce((sum, item) => sum + item.quantity, 0) * 3} mins</span>
-              </div>
-              {queueData && queueData.queue_length > 5 && (
-                <div className="flex justify-between items-center text-amber-600 dark:text-amber-400 font-medium">
-                  <span>High Load Factor Scaling (Busy Stall)</span>
-                  <span>1.2x Multiplier</span>
-                </div>
-              )}
-              <div className="flex justify-between items-center pt-2 border-t border-dashed border-gray-200 dark:border-gray-800 font-bold text-gray-700 dark:text-gray-300">
-                <span>Total Dynamic Prediction</span>
-                <span>~{estimatedWait} mins</span>
-              </div>
-            </div>
-
-            <div className="mt-4 text-center text-xs text-purple-600 dark:text-purple-400 bg-purple-500/5 dark:bg-purple-400/5 py-2 px-4 rounded-xl border border-purple-500/10">
-              {queuePosition === 1
-                ? "✨ You're next! The chef is preparing your order right now."
-                : `✨ Estimating ~${estimatedWait} minutes until complete based on active queue loading.`}
+            <div className="mt-4 text-center">
+              <p className="text-gray-600 dark:text-gray-400 text-sm">
+                {queuePosition === 1
+                  ? "You're next! Your order is being prepared."
+                  : `${queuePosition - 1} order${queuePosition - 1 !== 1 ? 's' : ''} ahead of you`}
+              </p>
             </div>
           </motion.div>
         )}

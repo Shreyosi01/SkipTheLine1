@@ -3,11 +3,7 @@ const BASE_URL =
     ? "http://localhost:8000"
     : "https://skiptheline-g8dy.onrender.com";
 
-const getToken = () => {
-  const role = sessionStorage.getItem("active_role") || (window.location.pathname.startsWith('/vendor') ? 'vendor' : 'customer');
-  return localStorage.getItem(`${role}_token`);
-};
-
+const getToken = () => localStorage.getItem("token");
 
 const authHeaders = () => ({
   "Content-Type": "application/json",
@@ -65,8 +61,8 @@ export const api = {
     }).then(handleResponse),
 
   // ── Stalls ──────────────────────────────────────
-  listStalls: (options?: { noCache?: boolean }) =>
-    fetch(`${BASE_URL}/stalls${options?.noCache ? '?nocache=1' : ''}`).then(handleResponse),
+  listStalls: () =>
+    fetch(`${BASE_URL}/stalls`).then(handleResponse),
 
   getMyStall: () =>
     fetch(`${BASE_URL}/stalls/vendor/me`, {
